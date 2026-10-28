@@ -7,6 +7,7 @@ const $ = id => document.getElementById(id);
 const Input = {
   down: new Set(),
   pressed: new Set(),
+  virtual: new Set(),
   init() {
     window.addEventListener('keydown', e => {
       const gameKeys = ['KeyA', 'KeyD', 'KeyJ', 'KeyK', 'KeyS', 'KeyU', 'KeyI', 'KeyO', 'KeyL', 'ShiftLeft', 'ShiftRight', 'ArrowLeft', 'ArrowRight'];
@@ -21,6 +22,7 @@ const Input = {
     window.addEventListener('blur', () => {
       this.down.clear();
       this.pressed.clear();
+      this.virtual.clear();
       if (typeof Game !== 'undefined' && Game.state === 'playing') Game.togglePause(true);
     });
     document.addEventListener('visibilitychange', () => {
@@ -31,7 +33,7 @@ const Input = {
     });
   },
   anyDown(codes) {
-    return codes.some(c => this.down.has(c));
+    return codes.some(c => this.down.has(c) || this.virtual.has(c));
   },
   anyPressed(codes) {
     return codes.some(c => this.pressed.has(c));
@@ -300,6 +302,11 @@ const Menu = {
     });
     $('pauseBtn').addEventListener('click', () => Game.togglePause());
     $('resumeBtn').addEventListener('click', () => Game.togglePause(false));
+    $('layoutSaveBtn').addEventListener('click', () => { GameAudio.ui(); Game.closeTouchLayout(true); });
+    $('layoutCancelBtn').addEventListener('click', () => { GameAudio.ui(); Game.closeTouchLayout(false); });
+    $('layoutCloseBtn').addEventListener('click', () => { GameAudio.ui(); Game.closeTouchLayout(false); });
+    $('layoutCollapseBtn').addEventListener('click', () => { GameAudio.ui(); Game.toggleTouchLayoutPanel(); });
+    $('layoutResetBtn').addEventListener('click', () => { GameAudio.ui(); Game.resetTouchLayout(); });
     $('restartBtn').addEventListener('click', () => { GameAudio.ui(); Game.restartCurrent(); });
     $('quitBtn').addEventListener('click', () => { GameAudio.ui(); Game.showMenu(); });
     $('rematchBtn').addEventListener('click', () => { GameAudio.ui(); Game.restartCurrent(); });
@@ -312,6 +319,7 @@ const Menu = {
     window.addEventListener('keydown', e => {
       if (e.code === 'Escape') {
         if (!$('helpOverlay').hidden) { this.closeHelp(); return; }
+        if (!$('layoutOverlay').hidden) { Game.closeTouchLayout(false); return; }
         if (Game.state === 'playing' || Game.state === 'paused') Game.togglePause();
       }
       if (e.code === 'KeyF' && !e.repeat) {
@@ -501,11 +509,20 @@ const TouchControls = {
   pauseBtn: null,
   muteBtn: null,
   fsBtn: null,
+  layoutBtn: null,
+  stick: null,
   buttons: [],
+  layoutItems: [],
   skillBtns: [],
   ultBtn: null,
   active: new Map(),
   sig: '',
+  layout: null,
+  prevLayout: null,
+  layoutEditing: false,
+  stickPointer: null,
+  stickDir: null,
+  layoutDrag: null,
 
   init() {
     this.root = $('touchControls');
@@ -513,14 +530,21 @@ const TouchControls = {
     this.pauseBtn = $('touchPauseBtn');
     this.muteBtn = $('touchMuteBtn');
     this.fsBtn = $('touchFsBtn');
+    this.layoutBtn = $('touchLayoutBtn');
+    this.stick = $('touchStick');
     this.buttons = Array.from(this.root.querySelectorAll('[data-touch]'));
+    this.layoutItems = Array.from(this.root.querySelectorAll('[data-layout]'));
     this.skillBtns = Array.from(this.root.querySelectorAll('.touch-skill'));
     this.ultBtn = this.root.querySelector('.touch-ult');
     this.blockBtn = this.root.querySelector('.touch-block');
     this.dodgeBtn = this.root.querySelector('.touch-dodge');
     this.blockGuardFill = this.blockBtn ? this.blockBtn.querySelector('.tb-guard i') : null;
 
+    this.loadLayout();
     this.buttons.forEach(btn => this.bind(btn));
+    this.bindStick();
+    this.bindLayoutDrag();
+    if (this.layout) this.applyLayout(this.layout);
     if (this.pauseBtn) {
       this.pauseBtn.addEventListener('pointerdown', e => {
         e.preventDefault();
@@ -550,6 +574,15 @@ const TouchControls = {
         }
       });
     }
+    if (this.layoutBtn) {
+      this.layoutBtn.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        if (Game.state === 'playing' || Game.state === 'paused') {
+          GameAudio.ui();
+          Game.openTouchLayout();
+        }
+      });
+    }
 
     const touch = (navigator.maxTouchPoints || 0) > 0 ||
       (window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches);
@@ -560,8 +593,8 @@ const TouchControls = {
       if (Game.state === 'playing' || Game.state === 'paused') this.setEnabled(true);
     }, { once: true, passive: true });
 
-    window.addEventListener('pointerup', e => this.releasePointer(e.pointerId));
-    window.addEventListener('pointercancel', e => this.releasePointer(e.pointerId));
+    window.addEventListener('pointerup', e => { this.releasePointer(e.pointerId); this.releaseStick(e.pointerId); });
+    window.addEventListener('pointercancel', e => { this.releasePointer(e.pointerId); this.releaseStick(e.pointerId); });
     window.addEventListener('blur', () => this.releaseAll());
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.releaseAll();
@@ -572,6 +605,7 @@ const TouchControls = {
   bind(btn) {
     const code = btn.dataset.touch;
     btn.addEventListener('pointerdown', e => {
+      if (this.layoutEditing) return;
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       if (Game.state !== 'playing') return;
       if (this.active.has(e.pointerId)) return;
@@ -587,6 +621,212 @@ const TouchControls = {
     btn.addEventListener('lostpointercapture', e => this.releasePointer(e.pointerId));
   },
 
+  bindStick() {
+    if (!this.stick) return;
+    this.stick.addEventListener('pointerdown', e => {
+      if (this.layoutEditing) return;
+      if (Game.state !== 'playing') return;
+      if (this.stickPointer !== null) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.preventDefault();
+      GameAudio.init();
+      if (navigator.vibrate) { try { navigator.vibrate(4); } catch (err) { /* noop */ } }
+      this.stickPointer = e.pointerId;
+      try { this.stick.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
+      this.stick.classList.add('active');
+      this.updateStick(e);
+    });
+    this.stick.addEventListener('pointermove', e => {
+      if (e.pointerId !== this.stickPointer) return;
+      e.preventDefault();
+      this.updateStick(e);
+    });
+    this.stick.addEventListener('pointerup', e => this.releaseStick(e.pointerId));
+    this.stick.addEventListener('pointercancel', e => this.releaseStick(e.pointerId));
+  },
+
+  updateStick(e) {
+    if (!this.stick) return;
+    const b = this.stick.getBoundingClientRect();
+    if (!b.width) return;
+    const cx = b.left + b.width / 2;
+    let dx = (e.clientX - cx) / (b.width * .34);
+    dx = U.clamp(dx, -1, 1);
+    const deadzone = .18;
+    const dir = dx < -deadzone ? 'KeyA' : dx > deadzone ? 'KeyD' : null;
+    if (dir !== this.stickDir) {
+      if (this.stickDir) Input.virtual.delete(this.stickDir);
+      if (dir) Input.virtual.add(dir);
+      this.stickDir = dir;
+    }
+    this.stick.style.setProperty('--sx', (dx * b.width * .19).toFixed(1) + 'px');
+    this.stick.classList.toggle('active', Math.abs(dx) > .05);
+  },
+
+  releaseStick(id = null) {
+    if (this.stickPointer === null || (id !== null && id !== this.stickPointer)) return;
+    if (this.stickDir) Input.virtual.delete(this.stickDir);
+    this.stickDir = null;
+    this.stickPointer = null;
+    if (this.stick) {
+      this.stick.classList.remove('active');
+      this.stick.style.setProperty('--sx', '0px');
+    }
+  },
+
+  loadLayout() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('stickArenaTouchLayout') || 'null');
+      if (!saved || !saved.controls) return;
+      const keys = ['stick', 'block', 'dodge', 'skill0', 'skill1', 'skill2', 'jump', 'ult', 'attack'];
+      const clean = {};
+      for (const key of keys) {
+        const p = saved.controls[key];
+        if (!Array.isArray(p) || p.length < 2) return;
+        const x = Number(p[0]), y = Number(p[1]);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        clean[key] = [U.clamp(x, 3, 97), U.clamp(y, 4, 96)];
+      }
+      this.layout = clean;
+    } catch (e) { /* 无效的旧布局直接忽略 */ }
+  },
+
+  capturePositions() {
+    if (!this.root) return null;
+    const rect = this.root.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const out = {};
+    this.layoutItems.forEach(el => {
+      const key = el.dataset.layout;
+      if (!key) return;
+      const b = el.getBoundingClientRect();
+      if (!b.width && !b.height) return;
+      out[key] = [
+        Math.round(U.clamp((b.left + b.width / 2 - rect.left) / rect.width * 100, 3, 97) * 100) / 100,
+        Math.round(U.clamp((b.top + b.height / 2 - rect.top) / rect.height * 100, 4, 96) * 100) / 100
+      ];
+    });
+    return Object.keys(out).length ? out : null;
+  },
+
+  applyLayout(layout) {
+    if (!this.root) return;
+    if (!layout) {
+      this.root.classList.remove('custom-layout');
+      this.layoutItems.forEach(el => {
+        el.style.removeProperty('--lx');
+        el.style.removeProperty('--ly');
+      });
+      return;
+    }
+    this.root.classList.add('custom-layout');
+    this.layoutItems.forEach(el => {
+      const p = layout[el.dataset.layout];
+      if (!p) return;
+      el.style.setProperty('--lx', Number(p[0]).toFixed(2));
+      el.style.setProperty('--ly', Number(p[1]).toFixed(2));
+    });
+  },
+
+  beginLayoutEdit() {
+    if (!this.root) return;
+    this.prevLayout = this.layout ? JSON.parse(JSON.stringify(this.layout)) : null;
+    this.layoutEditing = true;
+    this.root.classList.add('on', 'layout-editing');
+    if (!this.layout) {
+      this.root.classList.remove('custom-layout');
+      this.layoutItems.forEach(el => {
+        el.style.removeProperty('--lx');
+        el.style.removeProperty('--ly');
+      });
+      const captured = this.capturePositions();
+      if (captured) this.layout = captured;
+    }
+    if (this.layout) this.applyLayout(this.layout);
+  },
+
+  endLayoutEdit() {
+    if (!this.root) return;
+    this.layoutEditing = false;
+    this.root.classList.remove('layout-editing');
+    if (this.layout) this.applyLayout(this.layout);
+    else this.applyLayout(null);
+    this.prevLayout = null;
+    this.releaseStick();
+  },
+
+  saveLayout() {
+    if (!this.layout) return;
+    try {
+      localStorage.setItem('stickArenaTouchLayout', JSON.stringify({
+        version: 1,
+        controls: this.layout
+      }));
+    } catch (e) { /* 隐私模式可能禁用存储 */ }
+    this.endLayoutEdit();
+  },
+
+  cancelLayoutEdit() {
+    this.layout = this.prevLayout ? JSON.parse(JSON.stringify(this.prevLayout)) : null;
+    this.endLayoutEdit();
+  },
+
+  resetLayout() {
+    try { localStorage.removeItem('stickArenaTouchLayout'); } catch (e) { /* noop */ }
+    this.layout = null;
+    if (!this.root) return;
+    this.root.classList.remove('custom-layout');
+    this.layoutItems.forEach(el => {
+      el.style.removeProperty('--lx');
+      el.style.removeProperty('--ly');
+    });
+    const captured = this.capturePositions();
+    if (captured) {
+      this.layout = captured;
+      this.applyLayout(this.layout);
+    }
+  },
+
+  bindLayoutDrag() {
+    this.layoutItems.forEach(el => {
+      el.addEventListener('pointerdown', e => {
+        if (!this.layoutEditing) return;
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        const key = el.dataset.layout;
+        if (!key || !this.layout) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const rect = this.root.getBoundingClientRect();
+        const b = el.getBoundingClientRect();
+        const offsetX = e.clientX - (b.left + b.width / 2);
+        const offsetY = e.clientY - (b.top + b.height / 2);
+        el.classList.add('dragging');
+        try { el.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
+        const move = ev => {
+          if (ev.pointerId !== e.pointerId) return;
+          ev.preventDefault();
+          const x = (ev.clientX - offsetX - rect.left) / Math.max(1, rect.width) * 100;
+          const y = (ev.clientY - offsetY - rect.top) / Math.max(1, rect.height) * 100;
+          this.layout[key] = [
+            Math.round(U.clamp(x, 3, 97) * 100) / 100,
+            Math.round(U.clamp(y, 4, 96) * 100) / 100
+          ];
+          this.applyLayout(this.layout);
+        };
+        const finish = ev => {
+          if (ev.pointerId !== e.pointerId) return;
+          el.classList.remove('dragging');
+          el.removeEventListener('pointermove', move);
+          el.removeEventListener('pointerup', finish);
+          el.removeEventListener('pointercancel', finish);
+        };
+        el.addEventListener('pointermove', move);
+        el.addEventListener('pointerup', finish);
+        el.addEventListener('pointercancel', finish);
+      });
+    });
+  },
+
   releasePointer(id) {
     const rec = this.active.get(id);
     if (!rec) return;
@@ -598,6 +838,8 @@ const TouchControls = {
   },
 
   releaseAll() {
+    this.releaseStick();
+    Input.virtual.clear();
     const codes = new Set();
     this.active.forEach(rec => {
       rec.btn.classList.remove('active');
@@ -968,8 +1210,8 @@ const Game = {
     this.player = new Fighter(config.char, 'player', false);
     this.enemy = new Fighter(oppKey, 'enemy', !this.training);
     if (this.training) {
-      // 木桩拥有更高生命，并且永远不会被击倒；伤害数字与连击照常统计。
-      this.enemy.maxHp = 3000;
+      // 木桩拥有更高生命，但血量会正常下降；击破后自动重置，方便持续练习。
+      this.enemy.maxHp = 1500;
       this.enemy.hp = this.enemy.maxHp;
       this.enemy.trainingDummy = true;
     } else {
@@ -1006,6 +1248,7 @@ const Game = {
     this.lastHitSound = 0;
     this.trainingSparring = false;
     this.trainingAttackTimer = 2.2;
+    this.trainingDummyResetTimer = 0;
     this.trainingTasks = { combo: false, skill: false, ult: false, defense: false };
     this.trainingSignature = '';
 
@@ -1014,6 +1257,8 @@ const Game = {
     $('helpOverlay').hidden = true;
     this.pauseOverlay.hidden = true;
     this.resultOverlay.hidden = true;
+    $('layoutOverlay').hidden = true;
+    TouchControls.endLayoutEdit();
     $('statusToast').classList.remove('show');
     this.setPlayerHud();
     this.buildSkillDock();
@@ -1066,11 +1311,35 @@ const Game = {
     this.comboTimer = 0;
     this.hudLag1 = this.player.hp;
     this.hudLag2 = this.enemy.hp;
+    this.trainingDummyResetTimer = 0;
     this.trainingTasks = { combo: false, skill: false, ult: false, defense: false };
     this.trainingSignature = '';
     this.trainingAttackTimer = 1.6;
     this.updateHUD(0);
     this.toast('木桩已重置 · 继续练习', '#75e7ac', 1.4);
+  },
+
+  restoreTrainingDummy() {
+    const e = this.enemy;
+    if (!e) return;
+    this.trainingDummyResetTimer = 0;
+    e.hp = e.maxHp;
+    e.dead = false;
+    e.deathTime = 0;
+    e.action = null;
+    e.hitstun = 0;
+    e.vx = 0;
+    e.vy = 0;
+    e.onGround = true;
+    e.statuses = [];
+    e.hitFlash = 0;
+    e.hurtTimer = 0;
+    this.hudLag2 = e.maxHp;
+    this.addEffect({
+      type: 'ring', x: e.x, y: e.y - 70, radius: 76,
+      color: '#75e7ac', life: .45, maxLife: .45, lineWidth: 3
+    });
+    this.toast('木桩已重置 · 继续练习', '#75e7ac', 1.3);
   },
 
   setMatchChrome() {
@@ -1099,6 +1368,16 @@ const Game = {
   updateTraining(dt) {
     if (!this.training || !this.player || !this.enemy) return;
     const p = this.player;
+    if (this.trainingDummyResetTimer > 0) {
+      this.trainingDummyResetTimer -= dt;
+      // 击破后先定住木桩，避免 0 血目标继续行动。
+      this.enemy.action = null;
+      this.enemy.vx = 0;
+      this.enemy.vy = 0;
+      this.enemy.onGround = true;
+      this.enemy.hitstun = Math.max(this.enemy.hitstun, .12);
+      if (this.trainingDummyResetTimer <= 0) this.restoreTrainingDummy();
+    }
     // 训练场里冷却恢复更快，充能也会缓慢自动回复，方便连续试技能。
     p.energy = Math.min(100, p.energy + 8 * dt);
     p.cooldowns = p.cooldowns.map(cd => Math.max(0, cd - dt * 1.2));
@@ -1146,6 +1425,8 @@ const Game = {
     this.pauseOverlay.hidden = true;
     this.resultOverlay.hidden = true;
     $('helpOverlay').hidden = true;
+    $('layoutOverlay').hidden = true;
+    TouchControls.endLayoutEdit();
     $('trainingBar').hidden = true;
     $('orientationOverlay').hidden = true;
     this.orientationPaused = false;
@@ -1183,8 +1464,8 @@ const Game = {
     $('cpuBadge').textContent = this.training
       ? 'TRAINING · 木桩不还手'
       : `CPU · ${DIFFICULTIES[this.config.diff].name} · ${e.data.name}`;
-    $('p1HpText').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
-    $('p2HpText').textContent = `${Math.ceil(e.hp)} / ${e.maxHp}`;
+    $('p1HpText').textContent = `HP ${Math.ceil(p.hp)} / ${p.maxHp}`;
+    $('p2HpText').textContent = `HP ${Math.ceil(e.hp)} / ${e.maxHp}`;
     $('p1EnergyText').textContent = '0';
     $('p2EnergyText').textContent = '0';
     $('p1EnergyFill').style.width = '0%';
@@ -1263,18 +1544,7 @@ const Game = {
     };
   },
 
-  pushApart() {
-    const p = this.player, e = this.enemy;
-    if (!p || !e || p.dead || e.dead) return;
-    const min = 54;
-    const dx = e.x - p.x;
-    const dist = Math.abs(dx);
-    if (dist >= min) return;
-    const dir = dx === 0 ? (p.facing || 1) : U.sign(dx);
-    const push = (min - dist) * .5;
-    p.x = U.clamp(p.x - dir * push, WORLD.left, WORLD.right);
-    e.x = U.clamp(e.x + dir * push, WORLD.left, WORLD.right);
-  },
+  
 
   getPlayerIntent() {
     return {
@@ -1359,7 +1629,7 @@ const Game = {
     this.player.update(dt, this.enemy, p1Intent);
     this.enemy.update(dt, this.player, this.player.dead ? emptyIntent() : p2Intent);
     if (this.training) this.updateTraining(dt);
-    this.pushApart();
+    // 双方身体不互相推挤：角色可以自由穿过对手，避免被卡住身位。
 
     if (this.state !== 'playing') {
       this.updateEffects(dt);
@@ -1526,6 +1796,41 @@ const Game = {
     this.announceEl.classList.remove('show');
   },
 
+  openTouchLayout() {
+    if (this.state === 'playing') this.togglePause(true);
+    if (this.state !== 'paused') return;
+    this.pauseOverlay.hidden = true;
+    const overlay = $('layoutOverlay');
+    overlay.hidden = false;
+    overlay.classList.remove('collapsed');
+    $('layoutCollapseBtn').textContent = '收起面板';
+    TouchControls.beginLayoutEdit();
+  },
+
+  closeTouchLayout(save = false) {
+    if (!$('layoutOverlay') || $('layoutOverlay').hidden) return;
+    if (save) {
+      TouchControls.saveLayout();
+      this.toast('键位布局已保存', '#ffc27e', 1.4);
+    } else {
+      TouchControls.cancelLayoutEdit();
+    }
+    $('layoutOverlay').hidden = true;
+    $('layoutOverlay').classList.remove('collapsed');
+    if (this.state === 'paused') this.pauseOverlay.hidden = false;
+  },
+
+  toggleTouchLayoutPanel() {
+    const overlay = $('layoutOverlay');
+    const collapsed = overlay.classList.toggle('collapsed');
+    $('layoutCollapseBtn').textContent = collapsed ? '展开面板' : '收起面板';
+  },
+
+  resetTouchLayout() {
+    TouchControls.resetLayout();
+    this.toast('已恢复默认键位 · 可继续调整', '#ffc27e', 1.5);
+  },
+
   togglePause(force) {
     if (this.state === 'playing' || this.state === 'paused') {
       if (this.state === 'playing') {
@@ -1537,6 +1842,10 @@ const Game = {
         GameAudio.duckMusic(true);
         GameAudio.ui();
       } else if (force !== true) {
+        if (!$('layoutOverlay').hidden) {
+          this.closeTouchLayout(false);
+          return;
+        }
         this.state = 'playing';
         this.pauseOverlay.hidden = true;
         TouchControls.setPaused(false);
@@ -1581,8 +1890,15 @@ const Game = {
     const trainingDummy = this.training && target === this.enemy;
     const trainingPlayer = this.training && target === this.player;
     target.hp = Math.max(0, target.hp - damage);
-    // 训练木桩不会倒下：保留 35% 生命，方便持续练习连段与技能。
-    if (trainingDummy) target.hp = Math.max(target.maxHp * .35, target.hp);
+    // 训练木桩可以正常打到 0 血，击破后短暂停顿再自动回满，避免出现“锁血”的假象。
+    if (trainingDummy && target.hp <= 0 && this.trainingDummyResetTimer <= 0) {
+      this.trainingDummyResetTimer = 1.15;
+      this.toast('木桩已击破 · 即将重置', '#ffc27e', 1.2);
+      this.addEffect({
+        type: 'ring', x: target.x, y: target.y - 70, radius: 92,
+        color: '#ffc27e', life: .5, maxLife: .5, lineWidth: 4
+      });
+    }
     // 训练模式也不让玩家真正倒下，方便反复练习格挡和闪避。
     if (trainingPlayer) target.hp = Math.max(1, target.hp);
     target.hitFlash = .14;
@@ -1788,9 +2104,12 @@ const Game = {
           continue;
         }
       } else if (hitTarget) {
+        const actionType = p.owner.action && p.owner.action.type;
         const hit = this.dealDamage(p.owner, target, p.damage, {
-          kb: p.kb, stun: p.stun, type: p.owner.action && p.owner.action.type === 'skill' ? 'skill' : 'basic',
-          color: p.color, dir: U.sign(p.vx) || 1, heavy: p.damage >= 55
+          kb: p.kb, stun: p.stun,
+          type: actionType === 'ult' ? 'ult' : actionType === 'skill' ? 'skill' : 'basic',
+          color: p.color, dir: U.sign(target.x - p.x) || U.sign(p.vx) || 1, heavy: p.damage >= 55,
+          status: p.status
         });
         if (hit && p.empowered) {
           this.explode(p.x, p.y, 92, p.color, p.owner, 22);
@@ -1926,6 +2245,20 @@ const Game = {
             this.burst(z.x, WORLD.ground - 20, '#8aff7a', 20, 250);
             this.shake = Math.max(this.shake, 6);
             GameAudio.trap();
+          }
+        }
+      } else if (z.type === 'smoke') {
+        const target = z.owner === this.player ? this.enemy : this.player;
+        const inside = target && !target.dead && Math.abs(target.x - z.x) < z.radius && target.y > WORLD.ground - 155;
+        if (inside) {
+          target.addStatus('slow', .6, { amount: .38, color: z.color });
+          z.tick -= dt;
+          if (z.tick <= 0) {
+            z.tick = .48;
+            this.dealDamage(z.owner, target, z.damage, {
+              type: 'dot', color: z.color, noFeedback: true, energy: false,
+              kb: 0, stun: 0, silent: true
+            });
           }
         }
       }
@@ -2083,8 +2416,8 @@ const Game = {
     $('p2HpFill').style.width = (p2 * 100).toFixed(2) + '%';
     $('p1HpLag').style.width = (this.hudLag1 / p.maxHp * 100).toFixed(2) + '%';
     $('p2HpLag').style.width = (this.hudLag2 / e.maxHp * 100).toFixed(2) + '%';
-    $('p1HpText').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
-    $('p2HpText').textContent = this.training ? '∞' : `${Math.ceil(e.hp)} / ${e.maxHp}`;
+    $('p1HpText').textContent = `HP ${Math.ceil(p.hp)} / ${p.maxHp}`;
+    $('p2HpText').textContent = `HP ${Math.ceil(e.hp)} / ${e.maxHp}`;
     $('p1EnergyFill').style.width = p.energy.toFixed(1) + '%';
     $('p2EnergyFill').style.width = e.energy.toFixed(1) + '%';
     $('p1EnergyText').textContent = Math.floor(p.energy) + '%';
@@ -2112,6 +2445,8 @@ const Game = {
     $('p2HpFill').style.filter = p2Low ? 'saturate(1.4) brightness(1.15)' : '';
     $('p1HpFill').closest('.duelist').classList.toggle('low-hp', p1Low);
     $('p2HpFill').closest('.duelist').classList.toggle('low-hp', p2Low);
+    $('p1HpFill').closest('.duelist').classList.toggle('hp-hit', p.hitFlash > .02);
+    $('p2HpFill').closest('.duelist').classList.toggle('hp-hit', e.hitFlash > .02);
 
     this.updateSkillHud(p);
     TouchControls.update(p);

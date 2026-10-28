@@ -1,5 +1,5 @@
 /* STICK//ARENA — 安装版离线缓存 */
-const CACHE = 'stick-arena-v7';
+const CACHE = 'stick-arena-v10';
 const CORE = [
   './',
   './index.html',

@@ -326,13 +326,13 @@ kbd {
 
 .character-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 9px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .character-card {
   position: relative;
-  min-height: 125px;
+  min-height: 118px;
   padding: 0;
   overflow: hidden;
   text-align: left;
@@ -363,10 +363,10 @@ kbd {
 }
 .character-card .cc-canvas {
   position: absolute;
-  right: -4px;
+  right: -3px;
   bottom: 13px;
-  width: 106px;
-  height: 94px;
+  width: 80px;
+  height: 82px;
   opacity: .9;
   pointer-events: none;
 }
@@ -374,7 +374,7 @@ kbd {
 .cc-copy {
   position: relative;
   z-index: 2;
-  padding: 11px 0 0 12px;
+  padding: 10px 0 0 10px;
   pointer-events: none;
 }
 .cc-index {
@@ -388,9 +388,9 @@ kbd {
   display: block;
   margin-top: 2px;
   font-family: var(--display);
-  font-size: 21px;
+  font-size: 19px;
   font-weight: 700;
-  letter-spacing: .06em;
+  letter-spacing: .04em;
   line-height: 1.05;
 }
 .cc-en {
@@ -403,7 +403,7 @@ kbd {
 }
 .cc-role {
   display: inline-block;
-  margin-top: 12px;
+  margin-top: 8px;
   padding: 3px 6px;
   border: 1px solid rgba(255,255,255,.09);
   background: rgba(0,0,0,.22);
@@ -420,6 +420,16 @@ kbd {
   font-size: 12px;
 }
 .character-card.active .cc-arrow { color: var(--char-color); }
+/* 7 名斗士时最后一名占满整行，避免单独悬空。 */
+.character-grid > .character-card:last-child:nth-child(3n+1) {
+  grid-column: 1 / -1;
+}
+.character-grid > .character-card:last-child:nth-child(3n+1) .cc-canvas {
+  width: 128px;
+  height: 106px;
+  right: 12px;
+  bottom: 6px;
+}
 
 /* 选中角色简介 */
 
@@ -1178,26 +1188,39 @@ kbd {
 }
 .duelist-name {
   font-family: var(--display);
-  font-size: 22px;
+  font-size: 23px;
   font-weight: 700;
   letter-spacing: .08em;
   line-height: 1;
   text-shadow: 0 2px 14px rgba(0,0,0,.9);
 }
 .duelist-hp {
-  color: rgba(255,255,255,.52);
+  padding: 3px 8px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(2,6,11,.58);
+  color: rgba(255,255,255,.9);
   font-family: var(--mono);
-  font-size: 8px;
-  letter-spacing: .05em;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 1px 8px rgba(0,0,0,.9);
 }
 .hp-track {
   position: relative;
-  height: 22px;
-  border: 1px solid rgba(255,255,255,.17);
-  background: rgba(0,0,0,.56);
+  height: 30px;
+  border: 2px solid rgba(255,255,255,.24);
+  background:
+    linear-gradient(180deg, rgba(0,0,0,.72), rgba(0,0,0,.5)),
+    #05080d;
   overflow: hidden;
-  box-shadow: 0 4px 16px rgba(0,0,0,.35);
+  box-shadow:
+    0 4px 18px rgba(0,0,0,.55),
+    inset 0 0 0 1px rgba(255,255,255,.04);
 }
+.p1 .hp-track { border-color: rgba(112,255,196,.5); }
+.p2 .hp-track { border-color: rgba(255,104,122,.5); }
 .hp-track > div {
   position: absolute;
   top: 0;
@@ -1207,32 +1230,68 @@ kbd {
   transform-origin: left center;
 }
 .p2 .hp-track > div { left: auto; right: 0; transform-origin: right center; }
+.hp-track::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  z-index: 4;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 calc(10% - 1px),
+    rgba(0,0,0,.34) calc(10% - 1px) 10%
+  );
+}
+.hp-track::after {
+  content: "HP";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 5;
+  transform: translate(-50%, -50%);
+  color: rgba(255,255,255,.38);
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .3em;
+  pointer-events: none;
+  text-shadow: 0 1px 5px rgba(0,0,0,.9);
+}
 .hp-lag {
-  background: rgba(255,255,255,.42);
-  transition: width .55s cubic-bezier(.2,.8,.2,1);
+  background: linear-gradient(90deg, rgba(255,72,84,.9), rgba(255,164,82,.56));
+  transition: width .6s cubic-bezier(.2,.8,.2,1);
   z-index: 1;
 }
 .hp-fill {
-  background: linear-gradient(90deg, var(--p-color, #ff7a45), var(--p-color2, #ffc37a));
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.24), transparent 42%),
+    linear-gradient(90deg, var(--p-color, #ff7a45), var(--p-color2, #ffc37a));
   z-index: 2;
-  transition: width .1s linear;
-  box-shadow: 0 0 14px var(--p-color, #ff7a45);
+  transition: width .08s linear;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.18),
+    0 0 20px var(--p-color, #ff7a45);
 }
-.p2 .hp-fill { background: linear-gradient(270deg, var(--p-color), var(--p-color2)); }
+.p2 .hp-fill {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.24), transparent 42%),
+    linear-gradient(270deg, var(--p-color), var(--p-color2));
+}
 .duelist.low-hp .hp-track {
-  border-color: rgba(255,92,84,.5);
+  border-color: rgba(255,92,84,.72);
   animation: lowHpPulse 1.15s ease-in-out infinite;
 }
-.duelist.low-hp .duelist-hp { color: #ff9c92; }
+.duelist.low-hp .duelist-hp { color: #ffb1a8; border-color: rgba(255,110,100,.45); }
+.duelist.hp-hit .hp-track { filter: brightness(1.35) saturate(1.3); }
 @keyframes lowHpPulse {
   0%, 100% { box-shadow: 0 4px 16px rgba(0,0,0,.35), inset 0 0 0 rgba(255,72,64,0); }
   50% { box-shadow: 0 4px 16px rgba(0,0,0,.35), inset 0 0 18px rgba(255,72,64,.18); }
 }
 .hp-shine {
-  height: 40%;
+  height: 100%;
   top: 0;
   bottom: auto;
-  background: linear-gradient(180deg, rgba(255,255,255,.22), transparent);
+  background: linear-gradient(180deg, rgba(255,255,255,.24), transparent 52%, rgba(0,0,0,.16));
   z-index: 3;
   pointer-events: none;
 }
@@ -2086,9 +2145,10 @@ kbd {
 .touch-device .hud-top { padding: 12px 18px 0; }
 .touch-device .duelist { width: 660px; gap: 10px; }
 .touch-device .duelist-bars { padding-top: 2px; gap: 5px; }
-.touch-device .duelist-name { font-size: 32px; }
-.touch-device .duelist-hp { font-size: 16px; }
-.touch-device .hp-track { height: 32px; }
+.touch-device .duelist-name { font-size: 34px; }
+.touch-device .duelist-hp { font-size: 22px; padding: 5px 10px; }
+.touch-device .hp-track { height: 40px; }
+.touch-device .hp-track::after { font-size: 10px; }
 .touch-device .energy-label { font-size: 10px; }
 .touch-device .energy-track { height: 11px; }
 .touch-device .energy-num { width: 38px; font-size: 14px; }
@@ -2171,6 +2231,13 @@ kbd {
   right: 110px;
   right: max(110px, calc(env(safe-area-inset-right) + 100px));
 }
+.touch-layout {
+  right: 160px;
+  right: max(160px, calc(env(safe-area-inset-right) + 150px));
+  font-size: 18px;
+  color: #ffd2a8;
+  border-color: rgba(255,183,124,.36);
+}
 .touch-controls.paused .touch-pause {
   border-color: color-mix(in srgb, var(--accent) 70%, transparent);
   color: var(--accent);
@@ -2188,8 +2255,8 @@ kbd {
 }
 .touch-move {
   left: max(12px, env(safe-area-inset-left));
-  grid-template-columns: repeat(2, var(--tb));
-  grid-template-rows: var(--tb);
+  grid-template-columns: calc(var(--tb) * 2.35);
+  grid-template-rows: calc(var(--tb) * 2.35);
 }
 .touch-jump {
   grid-area: j;
@@ -2200,17 +2267,69 @@ kbd {
   border-radius: 14px;
   --tb-color: #79e7ff;
 }
-.touch-dir {
-  width: var(--tb);
-  height: var(--tb);
+.touch-stick {
+  position: relative;
+  width: calc(var(--tb) * 2.35);
+  height: calc(var(--tb) * 2.35);
+  border: 1px solid rgba(154,232,255,.35);
   border-radius: 50%;
-  --tb-color: #a9e9ff;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(121,231,255,.12), transparent 62%),
+    radial-gradient(circle at 50% 50%, rgba(5,11,17,.46), rgba(4,8,13,.72));
+  box-shadow:
+    0 12px 30px rgba(0,0,0,.32),
+    inset 0 0 28px rgba(124,231,255,.07);
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
-.touch-dir b {
+.stick-ring {
+  position: absolute;
+  inset: 15%;
+  border: 1px dashed rgba(174,240,255,.22);
+  border-radius: 50%;
+}
+.touch-stick::before,
+.touch-stick::after {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(190,245,255,.38);
   font-family: var(--mono);
-  font-size: calc(var(--tb) * .34);
-  line-height: 1;
-  font-weight: 400;
+  font-size: calc(var(--tb) * .22);
+}
+.touch-stick::before { content: "‹"; left: 9%; }
+.touch-stick::after { content: "›"; right: 9%; }
+.stick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46%;
+  height: 46%;
+  transform: translate(-50%, -50%) translateX(var(--sx, 0px));
+  border: 1px solid rgba(207,250,255,.75);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 38% 30%, rgba(255,255,255,.34), transparent 45%),
+    linear-gradient(160deg, rgba(124,229,255,.28), rgba(6,19,29,.92));
+  box-shadow: 0 6px 18px rgba(0,0,0,.4), 0 0 20px rgba(110,221,255,.18);
+  transition: transform .055s ease-out;
+}
+.touch-stick.active .stick-knob {
+  border-color: rgba(255,255,255,.92);
+  box-shadow: 0 6px 18px rgba(0,0,0,.35), 0 0 28px rgba(110,221,255,.45);
+}
+.stick-label {
+  position: absolute;
+  left: 50%;
+  bottom: 8%;
+  transform: translateX(-50%);
+  color: rgba(177,232,247,.5);
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: .14em;
 }
 
 .touch-defense {
@@ -2341,6 +2460,179 @@ kbd {
 .touch-controls.paused .touch-actions,
 .touch-controls.paused .touch-defense { opacity: 0; }
 .touch-controls.paused .touch-btn { pointer-events: none; }
+.touch-controls.paused .touch-stick { pointer-events: none; }
+
+/* 自定义布局：每个按钮脱离原网格，按保存的百分比自由摆放。 */
+.touch-controls.custom-layout .touch-move,
+.touch-controls.custom-layout .touch-defense,
+.touch-controls.custom-layout .touch-actions {
+  display: contents;
+}
+.touch-controls.custom-layout .touch-stick,
+.touch-controls.custom-layout .touch-btn {
+  position: absolute;
+  left: calc(var(--lx, 50) * 1%);
+  top: calc(var(--ly, 50) * 1%);
+  right: auto;
+  bottom: auto;
+  margin: 0;
+  transform: translate(-50%, -50%);
+}
+.touch-controls.custom-layout .touch-btn.active {
+  transform: translate(-50%, -50%) scale(.91);
+}
+.touch-controls.custom-layout .touch-stick .stick-knob {
+  transform: translate(-50%, -50%) translateX(var(--sx, 0px));
+}
+
+/* 编辑模式：保留暂停状态但强制显示全部键位，并拦截为拖拽。 */
+.touch-controls.layout-editing {
+  z-index: 70;
+  --layout-edit-color: #ffc27e;
+}
+.touch-controls.layout-editing .touch-move,
+.touch-controls.layout-editing .touch-defense,
+.touch-controls.layout-editing .touch-actions { opacity: 1; }
+.touch-controls.layout-editing .touch-btn,
+.touch-controls.layout-editing .touch-stick { pointer-events: auto; }
+.touch-controls.layout-editing .touch-btn {
+  outline: 1px dashed rgba(255,194,126,.62);
+  outline-offset: 3px;
+  box-shadow: 0 7px 22px rgba(0,0,0,.36), 0 0 0 1px rgba(255,194,126,.12), inset 0 0 18px rgba(255,194,126,.05);
+}
+.touch-controls.layout-editing .touch-btn::after {
+  content: "✥";
+  position: absolute;
+  top: -12px;
+  right: -7px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255,194,126,.65);
+  border-radius: 50%;
+  background: #1a120c;
+  color: #ffc27e;
+  font-family: var(--mono);
+  font-size: 9px;
+  pointer-events: none;
+}
+.touch-controls.layout-editing .touch-stick {
+  outline: 2px dashed rgba(255,194,126,.6);
+  outline-offset: 4px;
+}
+.touch-controls.layout-editing .touch-btn.dragging,
+.touch-controls.layout-editing .touch-stick.dragging {
+  outline-color: #fff0d8;
+  box-shadow: 0 0 30px rgba(255,194,126,.35), 0 10px 28px rgba(0,0,0,.45);
+  z-index: 5;
+}
+.touch-controls.layout-editing .touch-btn.dragging { transform: translate(-50%, -50%) scale(1.06); }
+
+/* 键位编辑面板：不挡底部拖拽区，只占顶部一条。 */
+.layout-layer {
+  z-index: 80;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 8px 10px;
+  background: linear-gradient(180deg, rgba(2,4,8,.88), rgba(2,4,8,.28) 38%, rgba(2,4,8,0));
+  backdrop-filter: none;
+  pointer-events: none;
+}
+.layout-card {
+  width: min(590px, calc(100vw - 20px));
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+  padding: 14px 20px 16px;
+  pointer-events: auto;
+}
+.layout-collapse {
+  position: absolute;
+  top: 14px;
+  right: 52px;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid rgba(255,194,126,.3);
+  background: rgba(255,194,126,.06);
+  color: #ffc27e;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: .08em;
+}
+.layout-collapse:hover { border-color: rgba(255,194,126,.6); }
+.layout-layer.collapsed .layout-card {
+  width: min(430px, calc(100vw - 20px));
+  padding: 10px 96px 10px 14px;
+}
+.layout-layer.collapsed .layout-card > .eyebrow,
+.layout-layer.collapsed .layout-card > h2,
+.layout-layer.collapsed .layout-card > p,
+.layout-layer.collapsed .layout-legend,
+.layout-layer.collapsed .layout-hint { display: none; }
+.layout-layer.collapsed .layout-actions { margin-top: 0; gap: 5px; }
+.layout-layer.collapsed .layout-actions .primary-btn,
+.layout-layer.collapsed .layout-actions .ghost-btn { height: 34px; font-size: 10px; }
+.layout-card h2 {
+  margin-top: 2px;
+  font-size: 27px;
+}
+.layout-card > p {
+  margin-top: 4px;
+  font-size: 10px;
+  line-height: 1.55;
+}
+.layout-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 14px;
+  margin-top: 9px;
+  color: var(--muted-2);
+  font-size: 8px;
+  letter-spacing: .06em;
+}
+.layout-legend > span { display: inline-flex; align-items: center; gap: 5px; }
+.layout-dot {
+  width: 7px;
+  height: 7px;
+  display: inline-block;
+  border-radius: 50%;
+  background: var(--layout-dot-color, #ff8a5c);
+}
+.layout-dot.stick { --layout-dot-color: #79e7ff; }
+.layout-dot.defense { --layout-dot-color: #8fdcff; }
+.layout-dot.skill { --layout-dot-color: #d777ff; }
+.layout-dot.attack { --layout-dot-color: #ff8a5c; }
+.layout-actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 10px;
+}
+.layout-actions .primary-btn,
+.layout-actions .ghost-btn {
+  flex: 1 1 0;
+  height: 40px;
+  font-size: 12px;
+}
+.layout-hint {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted-2);
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: .05em;
+}
+.touch-device .layout-card { transform: none; }
+@media (max-height: 500px) {
+  .layout-card { padding: 10px 16px 12px; }
+  .layout-card h2 { font-size: 22px; }
+  .layout-card > p { display: none; }
+  .layout-legend { margin-top: 6px; }
+  .layout-actions { margin-top: 7px; }
+  .layout-hint { display: none; }
+  .layout-actions .primary-btn,
+  .layout-actions .ghost-btn { height: 34px; }
+}
 
 .tb-main, .tb-glyph {
   display: block;
@@ -2541,8 +2833,9 @@ kbd {
   .icon-btn { padding: 0 9px; }
   .character-grid { gap: 7px; }
   .character-card { min-height: 106px; }
-  .cc-canvas { width: 82px; height: 75px; }
-  .cc-name { font-size: 18px; }
+  .cc-canvas { width: 52px; height: 62px; right: 1px; bottom: 8px; }
+  .character-card:last-child:nth-child(3n+1) .cc-canvas { width: 96px; height: 80px; right: 8px; bottom: 3px; }
+  .cc-name { font-size: 17px; }
   .cc-role { font-size: 7px; }
   .preview-fighter.p1 { left: 13px; bottom: 28px; }
   .preview-fighter.p2 { right: 13px; bottom: 28px; }
@@ -2562,6 +2855,14 @@ kbd {
   .result-scoreboard { gap: 6px; }
   .rs-side strong { font-size: 28px; }
   .rs-center { transform: scale(.86); }
+}
+
+@media (max-width: 480px) {
+  .character-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .character-grid > .character-card:last-child:nth-child(3n+1) { grid-column: auto; }
+  .character-grid > .character-card:last-child:nth-child(2n+1) { grid-column: 1 / -1; }
+  .character-card .cc-canvas { width: 74px; height: 78px; right: 2px; bottom: 8px; }
+  .character-card:last-child:nth-child(2n+1) .cc-canvas { width: 112px; height: 92px; right: 8px; bottom: 4px; }
 }
 
 @media (orientation: portrait) and (max-width: 700px) {

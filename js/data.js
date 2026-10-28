@@ -190,10 +190,145 @@ const CHARACTERS = {
       name: '歼灭炮', glyph: '灭', color: '#63f4ff',
       desc: '短暂蓄力后发射横贯战场的毁灭光束，可被高高跃起躲开。'
     }
+  },
+
+  barbarian: {
+    key: 'barbarian',
+    name: '野蛮人',
+    en: 'BARBARIAN',
+    title: '裂颅蛮王',
+    role: '近战 · 重锤',
+    color: '#e2603c',
+    color2: '#ffd27d',
+    dark: '#5e1e12',
+    glow: 'rgba(226,96,60,.64)',
+    hp: 1260,
+    speed: 292,
+    jump: 885,
+    doubleJump: 745,
+    weight: 1.24,
+    desc: '大锤落下，骨头和盾牌一起碎。血量厚、单发重，靠震地与冲撞把对手钉在墙角。',
+    difficulty: '重压',
+    stats: { atk: 94, def: 90, mob: 38 },
+    basicName: '裂颅三锤',
+    basicHint: '大锤三段 · 第三段砸地击飞',
+    basic: [
+      { dmg: 62, duration: 0.48, hitAt: 0.23, range: 170, height: 165, kb: 180, stun: 0.2 },
+      { dmg: 70, duration: 0.5, hitAt: 0.25, range: 178, height: 170, kb: 220, stun: 0.23 },
+      { dmg: 112, duration: 0.68, hitAt: 0.33, range: 205, height: 195, kb: 560, stun: 0.4, launch: 280, heavy: true }
+    ],
+    skills: [
+      {
+        key: 'U', name: '震地锤', glyph: '震', cd: 8.5,
+        color: '#ff9b55', desc: '重锤砸地，冲击波沿地面推进，命中击飞。'
+      },
+      {
+        key: 'I', name: '蛮牛冲撞', glyph: '撞', cd: 10.5,
+        color: '#ffd27d', desc: '短暂蓄力后向前冲撞，把正面敌人撞飞。'
+      },
+      {
+        key: 'O', name: '战吼', glyph: '吼', cd: 15,
+        color: '#ffb36b', desc: '回复生命，并在 6 秒内提升伤害、降低所受伤害。'
+      }
+    ],
+    ult: {
+      name: '天罚巨锤', glyph: '罚', color: '#ffc06b',
+      desc: '跃向对手砸下巨锤，造成大范围重击与眩晕。'
+    }
+  },
+
+  goblin: {
+    key: 'goblin',
+    name: '哥布林',
+    en: 'GOBLIN',
+    title: '尖牙猎手',
+    role: '中距 · 穿刺',
+    color: '#79d64b',
+    color2: '#e7ff77',
+    dark: '#1d4a17',
+    glow: 'rgba(121,214,75,.6)',
+    hp: 820,
+    speed: 348,
+    jump: 955,
+    doubleJump: 825,
+    weight: 0.82,
+    desc: '个子小，枪很长。用超远距离的连续突刺和控制陷阱把对手挡在攻击范围之外。',
+    difficulty: '狡诈',
+    stats: { atk: 84, def: 46, mob: 94 },
+    basicName: '毒牙三刺',
+    basicHint: '长枪三连刺 · 第三段突进击退',
+    basic: [
+      { dmg: 30, duration: 0.32, hitAt: 0.13, range: 205, height: 140, kb: 80, stun: 0.12 },
+      { dmg: 34, duration: 0.34, hitAt: 0.14, range: 215, height: 145, kb: 95, stun: 0.13 },
+      { dmg: 56, duration: 0.48, hitAt: 0.2, range: 240, height: 155, kb: 260, stun: 0.26, heavy: true }
+    ],
+    skills: [
+      {
+        key: 'U', name: '贯穿投枪', glyph: '投', cd: 8,
+        color: '#baff62', desc: '投出贯穿长枪，命中造成高额伤害并击退。'
+      },
+      {
+        key: 'I', name: '回马枪', glyph: '回', cd: 9.5,
+        color: '#8ff06d', desc: '向后跃开，随后一记超远距离突刺。'
+      },
+      {
+        key: 'O', name: '尖牙陷阱', glyph: '阱', cd: 13,
+        color: '#c6ff7a', desc: '布置尖牙陷阱，触发后定身并减速敌人。'
+      }
+    ],
+    ult: {
+      name: '百枪穿心', glyph: '枪', color: '#d6ff64',
+      desc: '召来多轮长枪从天而降，最后投出贯穿全场的巨枪。'
+    }
+  },
+
+  assassin: {
+    key: 'assassin',
+    name: '刺客',
+    en: 'ASSASSIN',
+    title: '暗影之刃',
+    role: '近战 · 爆发',
+    color: '#c45cff',
+    color2: '#ff9ede',
+    dark: '#3b0a55',
+    glow: 'rgba(196,92,255,.64)',
+    hp: 780,
+    speed: 372,
+    jump: 985,
+    doubleJump: 855,
+    weight: 0.74,
+    desc: '匕首只在最接近的距离说话。以瞬身、毒刃与烟幕贴近目标，再用终极连斩结束战斗。',
+    difficulty: '致命',
+    stats: { atk: 98, def: 44, mob: 98 },
+    basicName: '影袭三刃',
+    basicHint: '匕首三段快斩 · 第三段穿刺',
+    basic: [
+      { dmg: 26, duration: 0.24, hitAt: 0.1, range: 125, height: 130, kb: 50, stun: 0.1 },
+      { dmg: 28, duration: 0.25, hitAt: 0.1, range: 130, height: 135, kb: 55, stun: 0.11 },
+      { dmg: 50, duration: 0.4, hitAt: 0.16, range: 155, height: 145, kb: 230, stun: 0.24, heavy: true }
+    ],
+    skills: [
+      {
+        key: 'U', name: '影步', glyph: '影', cd: 7,
+        color: '#d777ff', desc: '瞬身穿过敌人并回身斩击，位移期间短暂无敌。'
+      },
+      {
+        key: 'I', name: '毒刃飞掷', glyph: '毒', cd: 9,
+        color: '#ff8ad8', desc: '扇形掷出三把毒刃，命中附加持续中毒。'
+      },
+      {
+        key: 'O', name: '烟幕遁', glyph: '烟', cd: 13,
+        color: '#b48cff', desc: '掷出烟幕，遮蔽区域并减速其中的敌人。'
+      }
+    ],
+    ult: {
+      name: '瞬狱杀', glyph: '狱', color: '#ff8ae6',
+      desc: '瞬移至对手身后，连续斩击后以一刀终结。'
+    }
   }
 };
 
-const CHAR_ORDER = ['warrior', 'mage', 'archer', 'gunner'];
+const CHAR_ORDER = ['warrior', 'mage', 'archer', 'gunner', 'barbarian', 'goblin', 'assassin'];
 
 const MAPS = {
   lava: {
@@ -253,14 +388,20 @@ const AI_RANGE = {
   warrior: { basic: 150, ideal: 120, retreat: 60, ult: 330 },
   mage: { basic: 520, ideal: 470, retreat: 270, ult: 560 },
   archer: { basic: 620, ideal: 540, retreat: 280, ult: 620 },
-  gunner: { basic: 500, ideal: 390, retreat: 210, ult: 720 }
+  gunner: { basic: 500, ideal: 390, retreat: 210, ult: 720 },
+  barbarian: { basic: 175, ideal: 130, retreat: 70, ult: 360 },
+  goblin: { basic: 215, ideal: 180, retreat: 100, ult: 900 },
+  assassin: { basic: 135, ideal: 100, retreat: 55, ult: 330 }
 };
 
 const AI_SKILL_RANGE = {
   warrior: [[0, 380], [120, 560], [0, 220], [0, 340]],
   mage: [[140, 760], [0, 250], [0, 400], [0, 700]],
   archer: [[180, 780], [0, 180], [0, 340], [0, 850]],
-  gunner: [[160, 580], [0, 280], [0, 380], [120, 900]]
+  gunner: [[160, 580], [0, 280], [0, 380], [120, 900]],
+  barbarian: [[0, 440], [100, 560], [0, 220], [0, 360]],
+  goblin: [[180, 820], [0, 320], [0, 230], [0, 900]],
+  assassin: [[0, 360], [100, 650], [0, 320], [0, 330]]
 };
 
 const GAME_RULES = {

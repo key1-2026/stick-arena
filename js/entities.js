@@ -466,7 +466,9 @@ class Fighter {
       fn: () => this.performBasic(idx, b, opp)
     }], { drag: 15 });
     if (this.onGround) this.vx += this.facing * (idx === 2 ? 170 : 80);
-    if (this.data.key === 'warrior' && idx === 2) Game.shakeBy(3);
+    if ((this.data.key === 'warrior' || this.data.key === 'barbarian') && idx === 2) {
+      Game.shakeBy(this.data.key === 'barbarian' ? 5 : 3);
+    }
   }
 
   performBasic(idx, b, opp) {
@@ -507,6 +509,64 @@ class Fighter {
         radius: big ? 11 : 9, damage: b.dmg, kb: b.kb, stun: b.stun,
         kind: big ? 'bigArrow' : 'arrow', color: d.color, glow: U.hexA(d.color, .55), life: 1.4
       });
+    } else if (d.key === 'barbarian' || d.key === 'goblin' || d.key === 'assassin') {
+      const heavy = !!b.heavy;
+      if (d.key === 'barbarian') {
+        GameAudio.hammer(heavy);
+        this.meleeStrike(b.range, b.height || 165, b.dmg, {
+          kb: b.kb, stun: b.stun, launch: b.launch || 0, heavy,
+          type: 'basic', color: d.color
+        }, opp);
+        Game.addEffect({
+          type: 'slash', x: this.x + this.facing * b.range * 0.42, y: this.y - 76,
+          radius: b.range * 0.78, color: d.color, face: this.facing,
+          angle: this.facing > 0 ? -0.18 : Math.PI - 0.18, heavy,
+          life: 0.2, maxLife: 0.2
+        });
+        if (heavy) {
+          Game.addEffect({
+            type: 'burst', x: this.x + this.facing * 78, y: WORLD.ground - 35,
+            radius: 92, color: d.color, seed: 1.4, life: .3, maxLife: .3
+          });
+          Game.dust(this.x + this.facing * 60, WORLD.ground, d.color, 14, 260);
+        }
+      } else if (d.key === 'goblin') {
+        GameAudio.spear();
+        this.meleeStrike(b.range, b.height || 145, b.dmg, {
+          kb: b.kb, stun: b.stun, launch: b.launch || 0, heavy,
+          type: 'basic', color: d.color
+        }, opp);
+        Game.addEffect({
+          type: 'slash', x: this.x + this.facing * b.range * 0.52, y: this.y - 87,
+          radius: b.range * 0.55, color: d.color, face: this.facing,
+          angle: this.facing > 0 ? 0.02 : Math.PI - 0.02, heavy,
+          life: 0.16, maxLife: 0.16
+        });
+        if (heavy) {
+          Game.addEffect({
+            type: 'burst', x: this.x + this.facing * b.range * 0.78, y: this.y - 88,
+            radius: 54, color: d.color2, seed: 2.2, life: .22, maxLife: .22
+          });
+        }
+      } else {
+        GameAudio.dagger();
+        this.meleeStrike(b.range, b.height || 135, b.dmg, {
+          kb: b.kb, stun: b.stun, launch: b.launch || 0, heavy,
+          type: 'basic', color: d.color
+        }, opp);
+        Game.addEffect({
+          type: 'slash', x: this.x + this.facing * b.range * 0.45, y: this.y - 86,
+          radius: b.range * 0.62, color: d.color, face: this.facing,
+          angle: this.facing > 0 ? -0.55 : Math.PI - 0.55, heavy,
+          life: 0.13, maxLife: 0.13
+        });
+        if (heavy) {
+          Game.addEffect({
+            type: 'burst', x: this.x + this.facing * b.range * 0.7, y: this.y - 86,
+            radius: 46, color: d.color2, seed: 3.4, life: .18, maxLife: .18
+          });
+        }
+      }
     } else {
       const empowered = this.empowerTimer > 0;
       if (empowered) {
@@ -820,7 +880,7 @@ class Fighter {
           }
         ], { drag: 1.1 });
       }
-    } else {
+    } else if (d.key === 'gunner') {
       if (index === 0) {
         this.beginAction('skill', 'Q', .68, [
           { t: .1, fn: () => GameAudio.swing() },
@@ -877,6 +937,251 @@ class Fighter {
             }
           }
         ], { drag: 1.2 });
+      }
+    } else if (d.key === 'barbarian') {
+      if (index === 0) {
+        this.beginAction('skill', 'Q', .82, [
+          { t: .08, fn: () => { GameAudio.hammer(true); Game.shakeBy(4); } },
+          {
+            t: .28, fn: () => {
+              GameAudio.hammer(true);
+              Game.shakeBy(11);
+              Game.spawnProjectile({
+                owner: this, kind: 'shockwave', x: this.x + dir * 58, y: WORLD.ground - 34,
+                vx: dir * 600, vy: 0, radius: 70, damage: 108, kb: 520, stun: .45,
+                color: d.color, glow: U.hexA(d.color, .7), life: 1.3, gravity: 0,
+                pierce: 1, hitOnce: true, trail: [], trailTimer: 0, groundOnly: true
+              });
+              Game.addEffect({
+                type: 'crack', x: this.x + dir * 82, y: WORLD.ground, radius: 155,
+                color: d.color, seed: 1.7, life: .48, maxLife: .48
+              });
+              Game.addEffect({
+                type: 'burst', x: this.x + dir * 88, y: WORLD.ground - 20, radius: 92,
+                color: d.color, seed: 1.1, life: .32, maxLife: .32
+              });
+              Game.dust(this.x + dir * 72, WORLD.ground, d.color, 18, 330);
+            }
+          }
+        ], { drag: 10 });
+      } else if (index === 1) {
+        this.beginAction('skill', 'W', .98, [
+          {
+            t: .05, fn: () => {
+              this.guardTimer = .45;
+              this.addStatus('guard', .45, { silent: true });
+              GameAudio.charge();
+              Game.addEffect({
+                type: 'ring', x: this.x, y: this.y - 76, radius: 52,
+                color: d.color2, life: .3, maxLife: .3, lineWidth: 3
+              });
+            }
+          },
+          {
+            t: .18, fn: () => {
+              this.vx = dir * 920;
+              GameAudio.dash();
+              Game.dust(this.x, WORLD.ground, d.color, 14, 300);
+            }
+          },
+          {
+            t: .34, fn: () => {
+              this.meleeStrike(136, 185, 112, {
+                kb: 560, stun: .42, launch: 210, heavy: true, type: 'skill', color: d.color
+              }, opp);
+              Game.addEffect({
+                type: 'burst', x: this.x + dir * 78, y: this.y - 88, radius: 82,
+                color: d.color, seed: 1.6, life: .28, maxLife: .28
+              });
+              Game.shakeBy(10);
+            }
+          },
+          {
+            t: .54, fn: () => {
+              this.meleeStrike(126, 175, 76, {
+                kb: 500, stun: .36, launch: 150, heavy: true, type: 'skill', color: d.color2
+              }, opp);
+            }
+          }
+        ], { drag: 2.6, superArmor: true });
+      } else {
+        this.beginAction('skill', 'E', .82, [
+          { t: .06, fn: () => GameAudio.roar() },
+          {
+            t: .22, fn: () => {
+              const heal = Math.min(115, this.maxHp - this.hp);
+              this.hp += heal;
+              this.addStatus('warBuff', 6, { color: d.color });
+              this.addStatus('slow', .7, { amount: .28, color: d.color2 });
+              Game.addEffect({
+                type: 'ring', x: this.x, y: this.y - 72, radius: 205,
+                color: d.color2, life: .7, maxLife: .7, lineWidth: 5, fill: true
+              });
+              Game.burst(this.x, this.y - 80, d.color2, 24, 290);
+              Game.floatText(this.x, this.y - 184, `+${Math.round(heal)}`, d.color2, 27);
+              Game.shakeBy(6);
+              GameAudio.heal();
+            }
+          }
+        ], { drag: 10 });
+      }
+    } else if (d.key === 'goblin') {
+      if (index === 0) {
+        this.beginAction('skill', 'Q', .58, [
+          { t: .08, fn: () => GameAudio.spear() },
+          {
+            t: .22, fn: () => {
+              GameAudio.spear();
+              Game.spawnProjectile({
+                owner: this, kind: 'spear', x: this.x + dir * 52, y: this.y - 92,
+                vx: dir * 1120, vy: 0, radius: 16, damage: 92, kb: 340, stun: .3,
+                color: d.color, glow: U.hexA(d.color, .7), life: 1.2,
+                gravity: 0, pierce: 2, hitOnce: true, trail: [], trailTimer: 0
+              });
+              Game.addEffect({
+                type: 'ring', x: this.x + dir * 52, y: this.y - 92, radius: 28,
+                color: d.color2, life: .22, maxLife: .22, lineWidth: 2
+              });
+            }
+          }
+        ], { drag: 11 });
+      } else if (index === 1) {
+        this.beginAction('skill', 'W', .8, [
+          {
+            t: .04, fn: () => {
+              this.invuln = .35;
+              this.vx = -dir * 580;
+              GameAudio.dash();
+              Game.dust(this.x, WORLD.ground, d.color, 12);
+            }
+          },
+          {
+            t: .26, fn: () => {
+              this.vx = dir * 940;
+              GameAudio.spear();
+              Game.dust(this.x, WORLD.ground, d.color2, 10);
+            }
+          },
+          {
+            t: .4, fn: () => {
+              this.meleeStrike(238, 155, 96, {
+                kb: 430, stun: .34, launch: 110, heavy: true, type: 'skill', color: d.color2
+              }, opp);
+              Game.addEffect({
+                type: 'slash', x: this.x + dir * 150, y: this.y - 88,
+                radius: 135, color: d.color2, face: dir,
+                angle: dir > 0 ? 0.02 : Math.PI - 0.02, heavy: true,
+                life: .18, maxLife: .18
+              });
+              Game.shakeBy(6);
+            }
+          }
+        ], { drag: 3.2 });
+      } else {
+        this.beginAction('skill', 'E', .56, [
+          { t: .08, fn: () => GameAudio.trap() },
+          {
+            t: .2, fn: () => {
+              const tx = U.clamp(this.x + dir * 78, WORLD.left + 30, WORLD.right - 30);
+              Game.zones = Game.zones.filter(z => !(z.type === 'trap' && z.owner === this));
+              Game.addZone({
+                type: 'trap', x: tx, y: WORLD.ground, radius: 68,
+                owner: this, life: 10, maxLife: 10, armed: false, armTimer: .5,
+                damage: 58, triggered: false, seed: 2.4
+              });
+              Game.addEffect({
+                type: 'ring', x: tx, y: WORLD.ground, radius: 72,
+                color: d.color, life: .42, maxLife: .42, lineWidth: 3
+              });
+              Game.burst(tx, WORLD.ground - 18, d.color, 12, 190);
+            }
+          }
+        ], { drag: 12 });
+      }
+    } else if (d.key === 'assassin') {
+      if (index === 0) {
+        this.beginAction('skill', 'Q', .56, [
+          {
+            t: .04, fn: () => {
+              this.invuln = Math.max(this.invuln, .28);
+              GameAudio.blink();
+            }
+          },
+          {
+            t: .11, fn: () => {
+              const oldX = this.x, oldY = this.y;
+              const nx = U.clamp(opp.x - dir * 54, WORLD.left + 30, WORLD.right - 30);
+              this.x = nx;
+              this.facing = opp.x >= this.x ? 1 : -1;
+              this.vx = 0;
+              Game.addEffect({
+                type: 'burst', x: oldX, y: oldY - 82, radius: 78,
+                color: d.color, seed: 2.3, life: .28, maxLife: .28
+              });
+              Game.addEffect({
+                type: 'ring', x: this.x, y: this.y - 82, radius: 34,
+                color: d.color2, life: .24, maxLife: .24, lineWidth: 2
+              });
+              Game.burst(oldX, oldY - 82, d.color, 14, 220);
+            }
+          },
+          {
+            t: .22, fn: () => {
+              this.meleeStrike(160, 165, 84, {
+                kb: 250, stun: .28, heavy: true, type: 'skill', color: d.color
+              }, opp);
+              Game.addEffect({
+                type: 'slash', x: this.x + dir * 54, y: this.y - 88,
+                radius: 92, color: d.color2, face: this.facing,
+                angle: this.facing > 0 ? -0.7 : Math.PI - 0.7, heavy: true,
+                life: .16, maxLife: .16
+              });
+              Game.shakeBy(5);
+            }
+          }
+        ], { drag: 3.4 });
+      } else if (index === 1) {
+        this.beginAction('skill', 'W', .52, [
+          { t: .08, fn: () => GameAudio.dagger() },
+          {
+            t: .18, fn: () => {
+              for (let i = -1; i <= 1; i++) {
+                const ang = i * .14;
+                Game.spawnProjectile({
+                  owner: this, kind: 'dagger', x: this.x + dir * 36, y: this.y - 90,
+                  vx: dir * 960 * Math.cos(ang), vy: Math.sin(ang) * 960,
+                  radius: 9, damage: 24, kb: 70, stun: .12,
+                  color: d.color2, glow: U.hexA(d.color, .65), life: .95,
+                  gravity: 0, pierce: 1, hitOnce: true, trail: [], trailTimer: 0,
+                  status: { type: 'burn', time: 2.2, dmg: 5, color: d.color, source: this }
+                });
+              }
+              Game.addEffect({
+                type: 'burst', x: this.x + dir * 38, y: this.y - 90, radius: 42,
+                color: d.color2, seed: 1.2, life: .2, maxLife: .2
+              });
+            }
+          }
+        ], { drag: 10 });
+      } else {
+        this.beginAction('skill', 'E', .62, [
+          { t: .06, fn: () => GameAudio.dagger() },
+          {
+            t: .18, fn: () => {
+              const tx = U.clamp(this.x + dir * 105, WORLD.left + 60, WORLD.right - 60);
+              Game.addZone({
+                type: 'smoke', x: tx, y: WORLD.ground, radius: 148,
+                owner: this, life: 4.2, maxLife: 4.2, tick: .35, damage: 7,
+                color: d.color, seed: 3.1
+              });
+              Game.addEffect({
+                type: 'burst', x: tx, y: WORLD.ground - 50, radius: 128,
+                color: d.color, seed: 2.8, life: .55, maxLife: .55
+              });
+              Game.burst(tx, WORLD.ground - 40, d.color, 22, 220);
+            }
+          }
+        ], { drag: 12 });
       }
     }
     Game.addEffect({
@@ -1031,7 +1336,7 @@ class Fighter {
           }
         }
       ], { drag: 18, superArmor: true });
-    } else {
+    } else if (d.key === 'gunner') {
       let beamX = this.x;
       this.beginAction('ult', 'R', 2.25, [
         {
@@ -1081,6 +1386,179 @@ class Fighter {
           }
         }
       ], { drag: 20, superArmor: true });
+    } else if (d.key === 'barbarian') {
+      const targetX = opp.x;
+      this.beginAction('ult', 'R', 1.78, [
+        {
+          t: .06, fn: () => {
+            this.invuln = 1.5;
+            this.onGround = false;
+            this.vy = -1120;
+            this.vx = U.clamp((targetX - this.x) / .7, -1000, 1000);
+            GameAudio.charge();
+            Game.addEffect({
+              type: 'target', x: targetX, y: WORLD.ground, radius: 140,
+              color: d.color, life: .9, maxLife: .9
+            });
+            Game.shakeBy(6);
+          }
+        },
+        {
+          t: .52, fn: () => {
+            this.x = U.clamp(targetX, WORLD.left, WORLD.right);
+            this.vy = 1980;
+          }
+        },
+        {
+          t: .74, fn: () => {
+            this.y = WORLD.ground;
+            this.onGround = true;
+            this.vy = 0;
+            this.vx = 0;
+            GameAudio.hammer(true);
+            Game.shakeBy(28);
+            Game.flash('#ffb066', .4);
+            Game.addEffect({
+              type: 'crack', x: this.x, y: WORLD.ground, radius: 380,
+              color: d.color, seed: 1.3, life: .8, maxLife: .8
+            });
+            Game.addEffect({
+              type: 'ring', x: this.x, y: WORLD.ground, radius: 380,
+              color: d.color, life: .8, maxLife: .8, lineWidth: 10
+            });
+            Game.addEffect({
+              type: 'ring', x: this.x, y: WORLD.ground, radius: 245,
+              color: d.color2, life: .58, maxLife: .58, lineWidth: 5
+            });
+            Game.addEffect({
+              type: 'burst', x: this.x, y: WORLD.ground - 58, radius: 205,
+              color: d.color, seed: 2.6, life: .55, maxLife: .55
+            });
+            Game.burst(this.x, WORLD.ground - 24, d.color, 46, 520);
+            Game.dust(this.x, WORLD.ground, d.color, 30, 460);
+            if (Math.abs(opp.x - this.x) < 380) {
+              Game.dealDamage(this, opp, 300, {
+                kb: 600, stun: 1.15, launch: 540, heavy: true,
+                type: 'ult', color: d.color, dir: U.sign(opp.x - this.x),
+                status: { type: 'slow', time: 2.4, amount: .48, color: d.color2 }
+              });
+            }
+          }
+        }
+      ], { drag: 10, superArmor: true, gravityScale: 1 });
+    } else if (d.key === 'goblin') {
+      this.beginAction('ult', 'R', 2.4, [
+        {
+          t: .05, fn: () => {
+            this.invuln = .55;
+            GameAudio.charge();
+            Game.addEffect({
+              type: 'ring', x: this.x, y: this.y - 88, radius: 58,
+              color: d.color2, life: .6, maxLife: .6, lineWidth: 3
+            });
+          }
+        },
+        ...[.38, .72, 1.06].map((tm, wave) => ({
+          t: tm,
+          fn: () => {
+            for (let i = 0; i < 3; i++) {
+              const tx = U.clamp(opp.x + (i - 1) * 58 + U.rand(-18, 18), WORLD.left + 25, WORLD.right - 25);
+              Game.spawnProjectile({
+                owner: this, kind: 'skySpear', x: tx, y: -70 - U.rand(0, 230),
+                vx: U.rand(-25, 25), vy: 1250 + U.rand(0, 120),
+                radius: 17, damage: 30, kb: 100, stun: .17,
+                color: d.color, glow: U.hexA(d.color, .65), life: 2.6,
+                gravity: 300, pierce: 1, trail: [], trailTimer: 0
+              });
+              Game.addEffect({
+                type: 'target', x: tx, y: WORLD.ground, radius: 42,
+                color: d.color2, life: .3, maxLife: .3
+              });
+            }
+            GameAudio.spear();
+            if (wave === 2) Game.shakeBy(8);
+          }
+        })),
+        {
+          t: 1.48, fn: () => {
+            GameAudio.spear();
+            Game.shakeBy(10);
+            Game.spawnProjectile({
+              owner: this, kind: 'spear', x: this.x + dir * 58, y: this.y - 92,
+              vx: dir * 1520, vy: 0, radius: 26, damage: 118, kb: 500, stun: .42,
+              color: d.color2, glow: U.hexA(d.color2, .8), life: 1.5,
+              gravity: 0, pierce: 3, hitOnce: true, trail: [], trailTimer: 0
+            });
+            Game.addEffect({
+              type: 'ring', x: this.x + dir * 58, y: this.y - 92, radius: 42,
+              color: d.color2, life: .3, maxLife: .3, lineWidth: 3
+            });
+          }
+        }
+      ], { drag: 16, superArmor: true });
+    } else if (d.key === 'assassin') {
+      this.beginAction('ult', 'R', 1.82, [
+        {
+          t: .04, fn: () => {
+            this.invuln = 1.35;
+            this.vx = 0;
+            GameAudio.blink();
+            Game.addEffect({
+              type: 'burst', x: this.x, y: this.y - 86, radius: 98,
+              color: d.color, seed: 2.2, life: .35, maxLife: .35
+            });
+          }
+        },
+        {
+          t: .16, fn: () => {
+            const oldX = this.x;
+            this.x = U.clamp(opp.x - dir * 54, WORLD.left + 30, WORLD.right - 30);
+            this.vx = 0;
+            this.facing = opp.x >= this.x ? 1 : -1;
+            Game.burst(oldX, this.y - 86, d.color, 18, 250);
+            Game.addEffect({
+              type: 'ring', x: this.x, y: this.y - 86, radius: 46,
+              color: d.color2, life: .32, maxLife: .32, lineWidth: 3
+            });
+          }
+        },
+        ...[.34, .52, .7].map(tm => ({
+          t: tm,
+          fn: () => {
+            this.facing = opp.x >= this.x ? 1 : -1;
+            GameAudio.dagger();
+            this.meleeStrike(172, 180, 58, {
+              kb: 60, stun: .2, type: 'ult', color: d.color
+            }, opp);
+            Game.addEffect({
+              type: 'slash', x: this.x + this.facing * 56, y: this.y - 88,
+              radius: 92, color: d.color2, face: this.facing,
+              angle: this.facing > 0 ? -0.7 : Math.PI - 0.7, heavy: true,
+              life: .14, maxLife: .14
+            });
+            Game.shakeBy(5);
+          }
+        })),
+        {
+          t: .96, fn: () => {
+            this.facing = opp.x >= this.x ? 1 : -1;
+            GameAudio.dagger();
+            this.meleeStrike(180, 195, 148, {
+              kb: 540, stun: .58, launch: 260, heavy: true, type: 'ult', color: d.color2
+            }, opp);
+            Game.addEffect({
+              type: 'crack', x: this.x + this.facing * 70, y: WORLD.ground, radius: 180,
+              color: d.color2, seed: 3.2, life: .55, maxLife: .55
+            });
+            Game.addEffect({
+              type: 'burst', x: this.x + this.facing * 68, y: this.y - 90, radius: 118,
+              color: d.color2, seed: 2.7, life: .35, maxLife: .35
+            });
+            Game.flash(d.color2, .3);
+            Game.shakeBy(18);
+          }
+        }
+      ], { drag: 7, superArmor: true });
     }
   }
 
@@ -1150,9 +1628,9 @@ class AIBrain {
         this.moveDir = 0;
       } else if (dist > range.ideal + 95) {
         this.moveDir = dir;
-      } else if (dist < range.retreat && f.key !== 'warrior') {
+      } else if (dist < range.retreat && !['warrior', 'barbarian', 'assassin'].includes(f.key)) {
         this.moveDir = -dir;
-      } else if (dist < 65 && f.key === 'warrior') {
+      } else if (dist < 65 && ['warrior', 'barbarian', 'assassin'].includes(f.key)) {
         this.moveDir = 0;
       } else {
         this.strafeTimer -= dt;
@@ -1247,7 +1725,19 @@ class AIBrain {
         } else if (f.key === 'archer') {
           if (i === 1 && dist < 180) weight = 2.2;
           if (i === 2 && (dist < 150 || f.hp / f.maxHp < .45)) weight = 3;
-        } else {
+        } else if (f.key === 'barbarian') {
+          if (i === 1 && dist < 540) weight = 2.5;
+          if (i === 2 && (f.hp / f.maxHp < .55 || dist < 200)) weight = 2.4;
+          if (i === 0 && dist > 180) weight = 1.8;
+        } else if (f.key === 'goblin') {
+          if (i === 1 && dist < 280) weight = 2.8;
+          if (i === 2 && dist < 230) weight = 2.1;
+          if (i === 0 && dist > 200) weight = 1.6;
+        } else if (f.key === 'assassin') {
+          if (i === 0 && dist < 300) weight = 2.6;
+          if (i === 2 && (f.hp / f.maxHp < .5 || dist < 220)) weight = 2.4;
+          if (i === 1 && dist > 180) weight = 1.7;
+        } else if (f.key === 'gunner') {
           if (i === 1 && dist < 240) weight = 2.6;
           if (i === 2 && (dist < 180 || f.hp / f.maxHp < .6)) weight = 2.2;
           if (i === 0 && dist > 220) weight = 1.4;

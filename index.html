@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="STICK ARENA">
   <meta name="application-name" content="STICK ARENA">
-  <meta name="description" content="STICK//ARENA 火柴人竞技场 — 四名斗士、三种技能、终极连招，横屏开战。">
+  <meta name="description" content="STICK//ARENA 火柴人竞技场 — 七名斗士、三种技能、终极连招，横屏开战。">
   <title>STICK//ARENA · 火柴人竞技场</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -74,8 +74,8 @@
             </div>
           </div>
           <div class="roster-foot">
-            <span>四名斗士 · 独立技能组</span>
-            <span class="dots">////</span>
+            <span>七名斗士 · 独立技能组</span>
+            <span class="dots">///////</span>
           </div>
         </section>
 
@@ -167,7 +167,7 @@
 
       <footer class="menu-footer">
         <span>STICK//ARENA © 2026 · BUILT WITH CANVAS</span>
-        <span>四职业 · 多种地图 · 动态充能</span>
+        <span>七职业 · 多种地图 · 动态充能</span>
         <span class="footer-tip">按 <kbd>?</kbd> 查看玩法</span>
       </footer>
     </section>
@@ -183,7 +183,7 @@
               <div class="duelist-bars">
                 <div class="duelist-meta">
                   <span class="duelist-name" id="p1Name">战士</span>
-                  <span class="duelist-hp" id="p1HpText">1150 / 1150</span>
+                  <span class="duelist-hp" id="p1HpText">HP 1150 / 1150</span>
                 </div>
                 <div class="hp-track">
                   <div class="hp-lag" id="p1HpLag"></div>
@@ -214,7 +214,7 @@
               <div class="duelist-bars">
                 <div class="duelist-meta">
                   <span class="duelist-name" id="p2Name">法师</span>
-                  <span class="duelist-hp" id="p2HpText">850 / 850</span>
+                  <span class="duelist-hp" id="p2HpText">HP 850 / 850</span>
                 </div>
                 <div class="hp-track">
                   <div class="hp-lag" id="p2HpLag"></div>
@@ -329,39 +329,65 @@
         </div>
       </div>
 
+      <div class="modal-layer layout-layer" id="layoutOverlay" hidden>
+        <div class="modal-card layout-card">
+          <button class="modal-close" id="layoutCloseBtn" type="button">×</button>
+          <button class="layout-collapse" id="layoutCollapseBtn" type="button">收起面板</button>
+          <span class="eyebrow">TOUCH LAYOUT / FREE PLACEMENT</span>
+          <h2>自定义键位</h2>
+          <p>拖动轮盘、格挡、闪避和每一个技能按钮。按钮会按横屏比例保存，换设备或旋转后仍然在顺手的位置。</p>
+          <div class="layout-legend">
+            <span><i class="layout-dot stick"></i>轮盘</span>
+            <span><i class="layout-dot defense"></i>防御</span>
+            <span><i class="layout-dot skill"></i>技能</span>
+            <span><i class="layout-dot attack"></i>普攻 / 跳跃</span>
+          </div>
+          <div class="layout-actions">
+            <button class="ghost-btn" id="layoutResetBtn" type="button">恢复默认</button>
+            <button class="ghost-btn" id="layoutCancelBtn" type="button">取消</button>
+            <button class="primary-btn" id="layoutSaveBtn" type="button">保存布局</button>
+          </div>
+          <small class="layout-hint">提示：拖动时按钮会跟随手指；面板可收起；保存后可从右上角“⌗”再次编辑。</small>
+        </div>
+      </div>
+
       <div class="touch-controls" id="touchControls">
         <button class="touch-pause" id="touchPauseBtn" type="button" aria-label="暂停">Ⅱ</button>
         <button class="touch-pause touch-mute" id="touchMuteBtn" type="button" aria-label="切换声音">♪</button>
         <button class="touch-pause touch-fs" id="touchFsBtn" type="button" aria-label="切换全屏">⛶</button>
+        <button class="touch-pause touch-layout" id="touchLayoutBtn" type="button" aria-label="自定义手机键位">⌗</button>
         <div class="touch-cluster touch-move">
-          <button class="touch-btn touch-dir" data-touch="KeyA" type="button" aria-label="向左移动"><b>◀</b></button>
-          <button class="touch-btn touch-dir" data-touch="KeyD" type="button" aria-label="向右移动"><b>▶</b></button>
+          <div class="touch-stick" id="touchStick" data-layout="stick" role="group" aria-label="移动轮盘，左右拖动">
+            <span class="stick-ring"></span>
+            <span class="stick-knob"></span>
+            <span class="stick-label">移动</span>
+          </div>
         </div>
         <div class="touch-cluster touch-defense">
-          <button class="touch-btn touch-block" data-touch="KeyS" type="button" aria-label="格挡 S，按住抵挡正面攻击">
+          <button class="touch-btn touch-block" data-layout="block" data-touch="KeyS" type="button" aria-label="格挡 S，按住抵挡正面攻击">
             <b class="tb-main">挡</b><span class="tb-key">S</span><span class="tb-guard"><i></i></span>
           </button>
-          <button class="touch-btn touch-dodge" data-touch="ShiftLeft" type="button" aria-label="闪避 Shift">
+          <button class="touch-btn touch-dodge" data-layout="dodge" data-touch="ShiftLeft" type="button" aria-label="闪避 Shift">
             <b class="tb-main">闪</b><span class="tb-key">SH</span><span class="tb-cd"></span>
           </button>
         </div>
         <div class="touch-cluster touch-actions">
-          <button class="touch-btn touch-skill" data-touch="KeyU" data-slot="0" type="button" aria-label="技能 U">
+          <button class="touch-btn touch-skill" data-layout="skill0" data-touch="KeyU" data-slot="0" type="button" aria-label="技能 U">
             <span class="tb-key">U</span><b class="tb-glyph">技</b><span class="tb-cd"></span>
           </button>
-          <button class="touch-btn touch-skill" data-touch="KeyI" data-slot="1" type="button" aria-label="技能 I">
+          <button class="touch-btn touch-skill" data-layout="skill1" data-touch="KeyI" data-slot="1" type="button" aria-label="技能 I">
             <span class="tb-key">I</span><b class="tb-glyph">技</b><span class="tb-cd"></span>
           </button>
-          <button class="touch-btn touch-skill" data-touch="KeyO" data-slot="2" type="button" aria-label="技能 O">
+          <button class="touch-btn touch-skill" data-layout="skill2" data-touch="KeyO" data-slot="2" type="button" aria-label="技能 O">
             <span class="tb-key">O</span><b class="tb-glyph">技</b><span class="tb-cd"></span>
           </button>
-          <button class="touch-btn touch-jump" data-touch="KeyK" type="button" aria-label="跳跃 K">
+          <button class="touch-btn touch-jump" data-layout="jump" data-touch="KeyK" type="button" aria-label="跳跃 K">
             <b class="tb-main">跳</b><span class="tb-key">K</span>
           </button>
-          <button class="touch-btn touch-ult" data-touch="KeyL" type="button" aria-label="终极技能 L">
+          <button class="touch-btn touch-ult" data-layout="ult" data-touch="KeyL" type="button" aria-label="终极技能 L">
             <span class="tb-key">L</span><b class="tb-glyph">终</b><span class="tb-cd"></span>
           </button>
-          <button class="touch-btn touch-attack" data-touch="KeyJ" type="button" aria-label="普通攻击 J">
+          <button class="touch-btn touch-attack" data-layout="attack" data-touch="KeyJ" type="button" aria-label="普通攻击 J">
             <b class="tb-main">攻</b><span class="tb-key">J</span>
           </button>
         </div>
@@ -426,7 +452,7 @@
           <div><b>Android · Chrome</b><span>右上角菜单 → “安装应用”或“添加到主屏幕”</span></div>
           <div><b>iPhone · Safari</b><span>底部分享按钮 → “添加到主屏幕”</span></div>
         </div>
-        <div class="install-note">安装与离线缓存需要 HTTPS 环境；当前若使用 HTTP，请先正常游玩，等证书签发后再安装。</div>
+        <div class="install-note">安装与离线缓存需要 HTTPS 环境；请使用 https://insomnia.fashion/ 打开后安装。</div>
         <button class="primary-btn" id="installDoneBtn" type="button">知道了</button>
       </div>
     </div>
@@ -448,7 +474,8 @@
               <div><span><kbd>S</kbd></span><p>格挡 · 按住抵挡正面攻击并消耗格挡值</p></div>
               <div><span><kbd>SHIFT</kbd></span><p>闪避 · 短距离位移，期间无敌，有冷却</p></div>
               <div><span><kbd>ESC</kbd></span><p>暂停 / 继续</p></div>
-              <div><span><kbd>手机</kbd></span><p>左侧移动，右侧跳跃、普攻、技能与大招；右侧上方“挡 / 闪”用于格挡和闪避</p></div>
+              <div><span><kbd>手机</kbd></span><p>左侧轮盘移动，右侧跳跃、普攻、技能与大招；右侧上方“挡 / 闪”用于格挡和闪避</p></div>
+              <div><span><kbd>布局</kbd></span><p>手机右上角“⌗”进入自定义键位；可拖动轮盘、格挡、闪避与每个技能按钮，保存后自动适配横屏</p></div>
               <div><span><kbd>训练</kbd></span><p>主菜单进入训练场；开启“木桩反击”可练习格挡、闪避与破防时机</p></div>
             </div>
           </div>
@@ -460,6 +487,7 @@
               <li><b>技能冷却</b><span>三个技能独立冷却，槽位上的数字和遮罩显示剩余时间。</span></li>
               <li><b>格挡与破防</b><span>格挡只挡正面并持续消耗格挡值；格挡值耗尽会破防，短时间内无法再挡。</span></li>
               <li><b>闪避时机</b><span>闪避有短暂无敌帧和冷却，适合穿过弹道或躲开大招，但不能连续无脑使用。</span></li>
+              <li><b>自由穿行</b><span>双方身体不会互相阻挡，可以穿过对手调整身位；只有攻击判定和场地边界会限制移动。</span></li>
               <li><b>角色克制</b><span>远程擅长拉扯，近战擅长贴脸。利用跳跃躲避弹道与地面火场。</span></li>
             </ul>
             <div class="help-energy">

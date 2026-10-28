@@ -873,7 +873,27 @@ const Render = (() => {
             weaponAngle: 0, bowDraw: p < 0.2 ? p / 0.2 : Math.max(0, 1 - (p - 0.2) / 0.25),
             lean: -2 + strike * 3, hipShift: -strike * 2
           };
-        } else {
+        } else if (d.key === 'barbarian') {
+          const a = p < 0.4 ? lerp(1.2, -2.55, wind) : lerp(-2.55, 0.55, strike);
+          actionPose = {
+            armFA: a, armFB: a + 0.12, armBA: p < 0.4 ? -1.35 : 1.7,
+            armBB: p < 0.4 ? -1.2 : 1.8, weaponAngle: a + 0.04,
+            lean: 3 + strike * 10, hipShift: strike * 6, crouch: strike * 4
+          };
+        } else if (d.key === 'goblin') {
+          const a = p < 0.28 ? lerp(1.2, -0.22, wind) : lerp(-0.22, 0.05, strike);
+          actionPose = {
+            armFA: a, armFB: a + 0.02, armBA: 1.78, armBB: 1.62,
+            weaponAngle: a, lean: 4 + strike * 7, hipShift: strike * 5
+          };
+        } else if (d.key === 'assassin') {
+          const a = p < 0.22 ? lerp(1.25, -1.95, wind) : lerp(-1.95, 0.82, strike);
+          actionPose = {
+            armFA: a, armFB: a + 0.16, armBA: 1.55, armBB: 1.8,
+            weaponAngle: a + 0.05, lean: 2 + strike * 6, hipShift: strike * 3,
+            crouch: strike * 2
+          };
+        } else if (d.key === 'gunner') {
           const recoil = p > 0.22 && p < 0.52 ? Math.sin((p - 0.22) / 0.3 * Math.PI) : 0;
           actionPose = {
             armFA: -0.02 + recoil * 0.33, armFB: 0.04 + recoil * 0.33,
@@ -938,7 +958,65 @@ const Render = (() => {
               weaponAngle: -0.08, bowDraw: 0, lean: -14, hipShift: 0
             };
           }
-        } else {
+        } else if (d.key === 'barbarian') {
+          if (key === 'Q') {
+            const a = p < 0.32 ? lerp(1.2, -2.6, wind) : lerp(-2.6, 0.7, strike);
+            actionPose = {
+              armFA: a, armFB: a + 0.1, armBA: p < 0.32 ? -1.4 : 1.75,
+              armBB: p < 0.32 ? -1.2 : 1.85, weaponAngle: a + 0.05,
+              lean: 3 + strike * 11, hipShift: strike * 6, crouch: strike * 5
+            };
+          } else if (key === 'W') {
+            actionPose = {
+              armFA: -2.45, armFB: -2.5, armBA: -2.2, armBB: -2.05,
+              weaponAngle: -2.35, lean: 18, hipShift: 3, crouch: 5
+            };
+          } else {
+            actionPose = {
+              armFA: -1.95 - Math.sin(p * 20) * 0.1, armFB: -1.35,
+              armBA: -1.5 - Math.cos(p * 20) * 0.1, armBB: -1.1,
+              weaponAngle: -1.8, lean: -2, hipShift: 0
+            };
+          }
+        } else if (d.key === 'goblin') {
+          if (key === 'Q') {
+            const a = p < 0.32 ? lerp(1.15, -1.15, wind) : lerp(-1.15, 0.1, strike);
+            actionPose = {
+              armFA: a, armFB: a + 0.04, armBA: 1.7, armBB: 1.55,
+              weaponAngle: a, lean: -3 + strike * 8, hipShift: strike * 3
+            };
+          } else if (key === 'W') {
+            const back = p < 0.28;
+            actionPose = {
+              armFA: back ? 1.1 : -0.05, armFB: back ? 1.2 : 0.02,
+              armBA: back ? 1.55 : 1.75, armBB: back ? 1.4 : 1.55,
+              weaponAngle: back ? 1.2 : 0.02, lean: back ? -9 : 12,
+              crouch: back ? 4 : 9, hipShift: back ? -3 : 6
+            };
+          } else {
+            actionPose = {
+              armFA: 1.05, armFB: 1.5, armBA: 1.2, armBB: 1.45,
+              weaponAngle: 1.35, lean: 8, crouch: 12, hipShift: 0
+            };
+          }
+        } else if (d.key === 'assassin') {
+          if (key === 'Q') {
+            actionPose = {
+              armFA: -2.4, armFB: -2.1, armBA: 1.5, armBB: 1.7,
+              weaponAngle: -2.2, lean: 8, crouch: 7, hipShift: 0
+            };
+          } else if (key === 'W') {
+            actionPose = {
+              armFA: -0.1, armFB: -0.03, armBA: 1.3, armBB: -0.7,
+              weaponAngle: -0.05, lean: -3, hipShift: -2
+            };
+          } else {
+            actionPose = {
+              armFA: 1.25, armFB: 1.7, armBA: 1.05, armBB: 1.45,
+              weaponAngle: 1.45, lean: 12, crouch: 8, hipShift: 0
+            };
+          }
+        } else if (d.key === 'gunner') {
           if (key === 'Q') {
             actionPose = {
               armFA: -2.5, armFB: -1.4, armBA: -2.1, armBB: -1.7,
@@ -982,7 +1060,31 @@ const Render = (() => {
             bowDraw: p < 0.75 ? 0.7 + 0.3 * Math.sin(p * 9) : 0.9,
             lean: -2
           };
-        } else {
+        } else if (d.key === 'barbarian') {
+          const up = p < 0.42;
+          actionPose = {
+            armFA: up ? -2.2 : 0.78, armFB: up ? -2.05 : 0.92,
+            armBA: up ? -1.45 : 1.6, armBB: up ? -1.25 : 1.82,
+            weaponAngle: up ? -2.2 : 0.78, lean: up ? -6 : 15,
+            hipShift: up ? 0 : 5, crouch: up ? 0 : 9
+          };
+        } else if (d.key === 'goblin') {
+          const up = p < 0.5;
+          actionPose = {
+            armFA: up ? -1.85 : -0.05, armFB: up ? -1.6 : 0.02,
+            armBA: up ? -1.6 : 1.72, armBB: up ? -1.35 : 1.58,
+            weaponAngle: up ? -1.7 : 0.02, lean: up ? -4 : 10,
+            crouch: up ? 2 : 6, hipShift: 0
+          };
+        } else if (d.key === 'assassin') {
+          const slash = Math.sin(clamp(p, 0, 1) * Math.PI * 3);
+          actionPose = {
+            armFA: -1.9 + slash * 1.3, armFB: -1.7 + slash * 1.4,
+            armBA: 1.2 + slash * .3, armBB: 1.5 + slash * .25,
+            weaponAngle: -1.3 + slash * 1.4, lean: 6 + Math.abs(slash) * 7,
+            hipShift: slash * 3, crouch: 3
+          };
+        } else if (d.key === 'gunner') {
           const charge = clamp(p / 0.55, 0, 1);
           const kick = p > 0.56 && p < 0.8 ? Math.sin((p - 0.56) / 0.24 * Math.PI) : 0;
           actionPose = {
@@ -1146,7 +1248,84 @@ const Render = (() => {
       ctx.beginPath();
       ctx.arc(-5, -10, 1.5, 0, TAU);
       ctx.fill();
-    } else {
+    } else if (d.key === 'barbarian') {
+      // 双角战盔
+      ctx.strokeStyle = d.color2;
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-13, -8);
+      ctx.quadraticCurveTo(-30, -18, -34, -31);
+      ctx.moveTo(13, -8);
+      ctx.quadraticCurveTo(30, -18, 34, -31);
+      ctx.stroke();
+      ctx.strokeStyle = d.color;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(0, -2, 16, 3.55, 5.85);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.18)';
+      ctx.beginPath();
+      ctx.arc(-9, -1, 2.2, 0, TAU);
+      ctx.fill();
+    } else if (d.key === 'goblin') {
+      // 大耳朵与尖牙
+      ctx.fillStyle = 'rgba(45,105,30,.98)';
+      ctx.strokeStyle = d.color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-14, -4);
+      ctx.quadraticCurveTo(-38, -18, -35, 3);
+      ctx.quadraticCurveTo(-27, 5, -14, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(14, -4);
+      ctx.quadraticCurveTo(38, -18, 35, 3);
+      ctx.quadraticCurveTo(27, 5, 14, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#f8ffd6';
+      ctx.beginPath();
+      ctx.moveTo(2, 9);
+      ctx.lineTo(7, 9);
+      ctx.lineTo(4.5, 14);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = d.color2;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(-16, -15);
+      ctx.quadraticCurveTo(-4, -25, 7, -18);
+      ctx.stroke();
+    } else if (d.key === 'assassin') {
+      // 兜帽与面罩
+      ctx.fillStyle = 'rgba(38,8,56,.98)';
+      ctx.strokeStyle = d.color;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(-16, 5);
+      ctx.quadraticCurveTo(-21, -22, 2, -21);
+      ctx.quadraticCurveTo(22, -17, 17, 5);
+      ctx.quadraticCurveTo(4, 11, -16, 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = d.color2;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(-10, 1);
+      ctx.lineTo(11, 0);
+      ctx.stroke();
+      ctx.fillStyle = d.color2;
+      ctx.globalAlpha = .8;
+      ctx.beginPath();
+      ctx.arc(-5, -1, 1.6, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    } else if (d.key === 'gunner') {
       // 帽子与雪茄
       ctx.strokeStyle = d.color;
       ctx.lineWidth = 3;
@@ -1355,11 +1534,173 @@ const Render = (() => {
     ctx.restore();
   }
 
+  function drawHammer(ctx, d, pose) {
+    const a = pose.weaponAngle;
+    ctx.save();
+    ctx.translate(pose.handF.x, pose.handF.y);
+    ctx.rotate(a);
+    ctx.lineCap = 'round';
+
+    // 木柄
+    ctx.strokeStyle = '#4a2b1c';
+    ctx.lineWidth = 9;
+    ctx.beginPath();
+    ctx.moveTo(-30, 0);
+    ctx.lineTo(84, 0);
+    ctx.stroke();
+    ctx.strokeStyle = '#b87745';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(-28, -1);
+    ctx.lineTo(82, -1);
+    ctx.stroke();
+
+    // 锤头
+    const metal = ctx.createLinearGradient(70, -28, 110, 30);
+    metal.addColorStop(0, '#6f7b87');
+    metal.addColorStop(.45, '#e7eef4');
+    metal.addColorStop(1, '#59616b');
+    ctx.save();
+    ctx.shadowColor = d.color;
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = metal;
+    ctx.strokeStyle = '#111820';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(70, -31, 42, 62, 6);
+    else ctx.rect(70, -31, 42, 62);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.fillRect(78, -24, 5, 48);
+    ctx.fillStyle = d.color;
+    ctx.fillRect(92, -20, 8, 40);
+    ctx.strokeStyle = d.color2;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(76, -25);
+    ctx.lineTo(106, -25);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawSpear(ctx, d, pose) {
+    const a = pose.weaponAngle;
+    ctx.save();
+    ctx.translate(pose.handF.x, pose.handF.y);
+    ctx.rotate(a);
+    ctx.lineCap = 'round';
+
+    // 长枪杆
+    ctx.strokeStyle = '#3d2a1c';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(-48, 0);
+    ctx.lineTo(100, 0);
+    ctx.stroke();
+    ctx.strokeStyle = '#b98552';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(-44, -1);
+    ctx.lineTo(98, -1);
+    ctx.stroke();
+
+    // 枪头
+    const steel = ctx.createLinearGradient(92, -15, 136, 15);
+    steel.addColorStop(0, '#7b8c76');
+    steel.addColorStop(.5, '#f0ffe6');
+    steel.addColorStop(1, '#a3c275');
+    ctx.fillStyle = steel;
+    ctx.strokeStyle = d.color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(130, 0);
+    ctx.quadraticCurveTo(107, -15, 94, -8);
+    ctx.lineTo(100, 0);
+    ctx.lineTo(94, 8);
+    ctx.quadraticCurveTo(107, 15, 130, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 红缨
+    ctx.strokeStyle = d.color2;
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(94, 0);
+      ctx.quadraticCurveTo(84, 10 + i * 4, 68, 8 + i * 6);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawDagger(ctx, d, pose) {
+    const a = pose.weaponAngle;
+    ctx.save();
+    ctx.translate(pose.handF.x, pose.handF.y);
+    ctx.rotate(a);
+    ctx.lineCap = 'round';
+
+    // 握柄
+    ctx.strokeStyle = '#2b1a36';
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.moveTo(-14, 0);
+    ctx.lineTo(2, 0);
+    ctx.stroke();
+    ctx.strokeStyle = d.color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-9, 0);
+    ctx.lineTo(2, 0);
+    ctx.stroke();
+
+    // 护手
+    ctx.strokeStyle = d.color2;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(2, -9);
+    ctx.lineTo(2, 9);
+    ctx.stroke();
+
+    // 短刃
+    const blade = ctx.createLinearGradient(2, 0, 46, 0);
+    blade.addColorStop(0, '#c7b7da');
+    blade.addColorStop(.45, '#ffffff');
+    blade.addColorStop(1, d.color2);
+    ctx.save();
+    ctx.shadowColor = d.color;
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = blade;
+    ctx.strokeStyle = '#0b0a10';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(3, -5);
+    ctx.quadraticCurveTo(36, -8, 48, 0);
+    ctx.quadraticCurveTo(34, 6, 3, 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,.8)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(10, -2);
+    ctx.lineTo(38, -2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   function drawWeapon(ctx, f, pose, t) {
     const d = f.data;
     if (d.key === 'warrior') drawSword(ctx, d, pose);
     else if (d.key === 'mage') drawStaff(ctx, d, pose, t);
     else if (d.key === 'archer') drawBow(ctx, d, pose);
+    else if (d.key === 'barbarian') drawHammer(ctx, d, pose);
+    else if (d.key === 'goblin') drawSpear(ctx, d, pose);
+    else if (d.key === 'assassin') drawDagger(ctx, d, pose);
     else drawGun(ctx, d, pose, t);
   }
 
@@ -1434,7 +1775,75 @@ const Render = (() => {
         ctx.fill();
       }
       ctx.restore();
-    } else {
+    } else if (d.key === 'barbarian') {
+      // 兽皮披肩
+      ctx.fillStyle = 'rgba(70,36,25,.95)';
+      ctx.strokeStyle = 'rgba(255,188,119,.35)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(pose.neck.x - 5, pose.neck.y + 4);
+      ctx.quadraticCurveTo(-27, -104, -35, -76);
+      ctx.quadraticCurveTo(-25, -72, -21, -82);
+      ctx.quadraticCurveTo(-18, -65, -11, -72);
+      ctx.lineTo(pose.neck.x + 3, pose.neck.y + 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // 肩甲铆钉
+      ctx.fillStyle = d.color2;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(-22 + i * 7, -78 + i * 3, 1.5, 0, TAU);
+        ctx.fill();
+      }
+    } else if (d.key === 'goblin') {
+      // 细长尾巴
+      ctx.strokeStyle = 'rgba(86,164,52,.8)';
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-9, -58);
+      ctx.quadraticCurveTo(-42, -48 + Math.sin(t * 5) * 4, -52, -22 + Math.sin(t * 5) * 5);
+      ctx.stroke();
+      // 骨牙项链
+      ctx.fillStyle = '#e8e0c0';
+      for (let i = 0; i < 3; i++) {
+        const x = -4 + i * 5;
+        ctx.beginPath();
+        ctx.moveTo(x, pose.neck.y + 12);
+        ctx.lineTo(x + 2, pose.neck.y + 18);
+        ctx.lineTo(x + 4, pose.neck.y + 12);
+        ctx.closePath();
+        ctx.fill();
+      }
+    } else if (d.key === 'assassin') {
+      // 飘带
+      const flutter = Math.sin(t * 6.5) * 7;
+      ctx.strokeStyle = 'rgba(196,92,255,.7)';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(pose.neck.x - 5, pose.neck.y + 5);
+      ctx.quadraticCurveTo(-32, pose.neck.y + 19 + flutter, -56, pose.neck.y + 5 - flutter);
+      ctx.stroke();
+      // 背后短刃
+      ctx.save();
+      ctx.translate(-13, -76);
+      ctx.rotate(-0.65);
+      ctx.strokeStyle = d.color2;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(25, 0);
+      ctx.stroke();
+      ctx.strokeStyle = d.color;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(-5, 0);
+      ctx.lineTo(2, 0);
+      ctx.stroke();
+      ctx.restore();
+    } else if (d.key === 'gunner') {
       // 风衣下摆
       ctx.strokeStyle = 'rgba(50,139,150,0.55)';
       ctx.lineWidth = 4;
@@ -1770,6 +2179,71 @@ const Render = (() => {
       ctx.beginPath();
       ctx.arc(-r * 0.2, -r * 0.1, r * 0.4, 0, TAU);
       ctx.fill();
+    } else if (p.kind === 'spear' || p.kind === 'skySpear') {
+      const scale = p.kind === 'skySpear' ? .8 : 1;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = p.glow || color;
+      ctx.globalAlpha = .28;
+      ctx.lineWidth = 16 * scale;
+      ctx.beginPath();
+      ctx.moveTo(-70 * scale, 0);
+      ctx.lineTo(26 * scale, 0);
+      ctx.stroke();
+      ctx.restore();
+      ctx.strokeStyle = '#3d2a1c';
+      ctx.lineWidth = 5 * scale;
+      ctx.beginPath();
+      ctx.moveTo(-76 * scale, 0);
+      ctx.lineTo(24 * scale, 0);
+      ctx.stroke();
+      ctx.strokeStyle = '#c89962';
+      ctx.lineWidth = 1.5 * scale;
+      ctx.beginPath();
+      ctx.moveTo(-72 * scale, -1);
+      ctx.lineTo(22 * scale, -1);
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.strokeStyle = '#f3ffe0';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(52 * scale, 0);
+      ctx.quadraticCurveTo(32 * scale, -11 * scale, 20 * scale, -5 * scale);
+      ctx.lineTo(26 * scale, 0);
+      ctx.lineTo(20 * scale, 5 * scale);
+      ctx.quadraticCurveTo(32 * scale, 11 * scale, 52 * scale, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    } else if (p.kind === 'dagger') {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = p.glow || color;
+      ctx.globalAlpha = .3;
+      ctx.lineWidth = 12;
+      ctx.beginPath();
+      ctx.moveTo(-28, 0);
+      ctx.lineTo(16, 0);
+      ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = color;
+      ctx.strokeStyle = '#fff0ff';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(24, 0);
+      ctx.quadraticCurveTo(5, -9, -8, -3);
+      ctx.lineTo(-4, 0);
+      ctx.lineTo(-8, 3);
+      ctx.quadraticCurveTo(5, 9, 24, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = '#2b1a36';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(-13, 0);
+      ctx.lineTo(-3, 0);
+      ctx.stroke();
     } else if (p.kind === 'iceShard') {
       ctx.fillStyle = color;
       ctx.strokeStyle = '#eaffff';
@@ -1849,6 +2323,33 @@ const Render = (() => {
         ctx.quadraticCurveTo(x + 4, GROUND - h * 0.6, x + (i % 2 ? 8 : -7), GROUND - h);
         ctx.stroke();
       }
+      ctx.restore();
+    } else if (z.type === 'smoke') {
+      const pulse = .82 + .18 * Math.sin(t * 3.4 + z.seed);
+      ctx.save();
+      const g = ctx.createRadialGradient(z.x, GROUND - 55, 12, z.x, GROUND - 55, z.radius);
+      g.addColorStop(0, 'rgba(126,64,160,.42)');
+      g.addColorStop(.5, 'rgba(90,50,120,.28)');
+      g.addColorStop(1, 'rgba(60,24,80,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.ellipse(z.x, GROUND - 48, z.radius * 1.05, 84 * pulse, 0, 0, TAU);
+      ctx.fill();
+      for (let i = 0; i < 9; i++) {
+        const seed = z.seed + i * 1.7;
+        const px = z.x + Math.sin(seed * 3.7 + t * .55) * z.radius * .72;
+        const py = GROUND - 32 - (i % 4) * 23 + Math.sin(seed * 5.3 + t * 1.1) * 9;
+        const r = 22 + (i % 3) * 10;
+        ctx.fillStyle = i % 2 ? 'rgba(188,116,226,.12)' : 'rgba(120,78,160,.18)';
+        ctx.beginPath();
+        ctx.arc(px, py, r * pulse, 0, TAU);
+        ctx.fill();
+      }
+      ctx.strokeStyle = 'rgba(212,156,255,.18)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.ellipse(z.x, GROUND + 1, z.radius * .9, 16, 0, 0, TAU);
+      ctx.stroke();
       ctx.restore();
     }
   }
