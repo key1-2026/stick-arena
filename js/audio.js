@@ -388,6 +388,34 @@ const GameAudio = (() => {
       init();
       noise(0.18, { freq: 900, endFreq: 280, volume: 0.12, q: 0.6 });
     },
+    guard() {
+      init();
+      tone(420, 0.08, { type: 'triangle', volume: 0.035, endFreq: 620 });
+      noise(0.08, { freq: 1800, endFreq: 900, volume: 0.035, q: 1.4 });
+    },
+    block(heavy = false) {
+      init();
+      noise(heavy ? 0.18 : 0.09, {
+        freq: heavy ? 700 : 1500,
+        endFreq: heavy ? 180 : 620,
+        volume: heavy ? 0.18 : 0.1,
+        q: 0.9
+      });
+      tone(heavy ? 110 : 190, heavy ? 0.14 : 0.07, {
+        type: 'triangle', volume: heavy ? 0.08 : 0.04, endFreq: heavy ? 62 : 120
+      });
+    },
+    guardBreak() {
+      init();
+      noise(0.28, { freq: 2600, endFreq: 180, volume: 0.2, q: 0.55 });
+      tone(78, 0.32, { type: 'sawtooth', volume: 0.09, endFreq: 34, cutoff: 1200 });
+      tone(260, 0.2, { type: 'square', volume: 0.035, endFreq: 90 });
+    },
+    dodge() {
+      init();
+      noise(0.17, { freq: 1800, endFreq: 420, volume: 0.1, q: 0.7 });
+      tone(620, 0.14, { type: 'sine', volume: 0.04, endFreq: 1240 });
+    },
     blink() {
       init();
       tone(900, 0.2, { type: 'sine', volume: 0.05, endFreq: 240 });

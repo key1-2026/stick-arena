@@ -9,7 +9,7 @@ const Input = {
   pressed: new Set(),
   init() {
     window.addEventListener('keydown', e => {
-      const gameKeys = ['KeyA', 'KeyD', 'KeyJ', 'KeyQ', 'KeyW', 'KeyE', 'KeyR', 'Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp'];
+      const gameKeys = ['KeyA', 'KeyD', 'KeyJ', 'KeyK', 'KeyS', 'KeyU', 'KeyI', 'KeyO', 'KeyL', 'ShiftLeft', 'ShiftRight', 'ArrowLeft', 'ArrowRight'];
       if (gameKeys.includes(e.code)) e.preventDefault();
       if (!e.repeat) this.pressed.add(e.code);
       this.down.add(e.code);
@@ -224,7 +224,7 @@ const Menu = {
         <ul>
           <li><i>J</i><b>${c.basicName}</b> · 普攻三段</li>
           ${skills}
-          <li><i>R</i><b>${c.ult.name}</b> · 终极技能</li>
+          <li><i>L</i><b>${c.ult.name}</b> · 终极技能</li>
         </ul>
       </div>`;
     }).join('');
@@ -232,6 +232,56 @@ const Menu = {
 
   bind() {
     $('startBtn').addEventListener('click', () => {
+      GameAudio.init();
+      GameAudio.ui();
+      Game.startMatch(this.config);
+    });
+    $('trainingBtn').addEventListener('click', () => {
+      GameAudio.init();
+      GameAudio.ui();
+      Game.startTraining(this.config);
+    });
+    $('trainingResetBtn').addEventListener('click', () => {
+      GameAudio.ui();
+      Game.resetTraining();
+    });
+    $('trainingExitBtn').addEventListener('click', () => {
+      GameAudio.ui();
+      Game.showMenu();
+    });
+    $('trainingToggleBtn').addEventListener('click', () => {
+      GameAudio.ui();
+      $('trainingBar').classList.toggle('collapsed');
+      const collapsed = $('trainingBar').classList.contains('collapsed');
+      $('trainingToggleBtn').textContent = collapsed ? '展开' : '收起';
+    });
+    $('trainingSparBtn').addEventListener('click', () => {
+      if (!Game.training) return;
+      GameAudio.ui();
+      Game.trainingSparring = !Game.trainingSparring;
+      Game.trainingAttackTimer = 1.1;
+      Game.updateTrainingSparBtn();
+      Game.toast(
+        Game.trainingSparring ? '木桩反击已开启 · 练习格挡与闪避' : '木桩反击已关闭',
+        Game.trainingSparring ? '#ff9b8f' : '#75e7ac',
+        1.8
+      );
+    });
+    $('orientationBtn').addEventListener('click', () => {
+      GameAudio.init();
+      GameAudio.ui();
+      Game.enterLandscape();
+    });
+    $('installBtn').addEventListener('click', () => Game.promptInstall());
+    $('installClose').addEventListener('click', () => {
+      $('installOverlay').hidden = true;
+      try { localStorage.setItem('stickArenaInstallDismissed', '1'); } catch (e) { /* noop */ }
+    });
+    $('installDoneBtn').addEventListener('click', () => {
+      $('installOverlay').hidden = true;
+      try { localStorage.setItem('stickArenaInstallDismissed', '1'); } catch (e) { /* noop */ }
+    });
+    $('quickStartBtn').addEventListener('click', () => {
       GameAudio.init();
       GameAudio.ui();
       Game.startMatch(this.config);
@@ -250,9 +300,9 @@ const Menu = {
     });
     $('pauseBtn').addEventListener('click', () => Game.togglePause());
     $('resumeBtn').addEventListener('click', () => Game.togglePause(false));
-    $('restartBtn').addEventListener('click', () => { GameAudio.ui(); Game.startMatch(Game.config); });
+    $('restartBtn').addEventListener('click', () => { GameAudio.ui(); Game.restartCurrent(); });
     $('quitBtn').addEventListener('click', () => { GameAudio.ui(); Game.showMenu(); });
-    $('rematchBtn').addEventListener('click', () => { GameAudio.ui(); Game.startMatch(Game.config); });
+    $('rematchBtn').addEventListener('click', () => { GameAudio.ui(); Game.restartCurrent(); });
     $('backMenuBtn').addEventListener('click', () => { GameAudio.ui(); Game.showMenu(); });
 
     window.addEventListener('resize', () => {
@@ -273,6 +323,10 @@ const Menu = {
       }
       if (e.code === 'Enter' && Game.state === 'menu' && $('helpOverlay').hidden) {
         Game.startMatch(this.config);
+      }
+      if (e.code === 'KeyT' && Game.state === 'menu' && $('helpOverlay').hidden) {
+        e.preventDefault();
+        Game.startTraining(this.config);
       }
     });
   },
@@ -333,7 +387,7 @@ const Menu = {
     $('detailSkills').innerHTML = c.skills.map(s => `
       <span class="detail-skill" style="--skill-c:${s.color}"><i>${s.key}</i><b>${s.name}</b><small>${s.cd}s</small></span>
     `).join('') + `
-      <span class="detail-skill ultimate" style="--skill-c:${c.ult.color}"><i>R</i><b>${c.ult.name}</b><small>充能</small></span>
+      <span class="detail-skill ultimate" style="--skill-c:${c.ult.color}"><i>L</i><b>${c.ult.name}</b><small>充能</small></span>
     `;
     document.documentElement.style.setProperty('--selected-color', c.color);
 
@@ -462,6 +516,9 @@ const TouchControls = {
     this.buttons = Array.from(this.root.querySelectorAll('[data-touch]'));
     this.skillBtns = Array.from(this.root.querySelectorAll('.touch-skill'));
     this.ultBtn = this.root.querySelector('.touch-ult');
+    this.blockBtn = this.root.querySelector('.touch-block');
+    this.dodgeBtn = this.root.querySelector('.touch-dodge');
+    this.blockGuardFill = this.blockBtn ? this.blockBtn.querySelector('.tb-guard i') : null;
 
     this.buttons.forEach(btn => this.bind(btn));
     if (this.pauseBtn) {
@@ -520,6 +577,7 @@ const TouchControls = {
       if (this.active.has(e.pointerId)) return;
       e.preventDefault();
       GameAudio.init();
+      if (navigator.vibrate) { try { navigator.vibrate(7); } catch (err) { /* noop */ } }
       try { btn.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
       this.active.set(e.pointerId, { btn, code });
       btn.classList.add('active');
@@ -586,7 +644,7 @@ const TouchControls = {
       this.ultBtn.style.setProperty('--tb-color', data.ult.color || data.color2);
       const glyph = this.ultBtn.querySelector('.tb-glyph');
       if (glyph) glyph.textContent = data.ult.glyph || '终';
-      this.ultBtn.setAttribute('aria-label', `R ${data.ult.name}`);
+      this.ultBtn.setAttribute('aria-label', `L ${data.ult.name}`);
     }
     this.sig = '';
   },
@@ -598,7 +656,9 @@ const TouchControls = {
       (window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches);
     if (!touch) return;
     const sig = p.cooldowns.map(c => c.toFixed(1)).join('|') +
-      '|' + Math.floor(p.energy) + '|' + (p.energy >= 100 ? 1 : 0);
+      '|' + Math.floor(p.energy) + '|' + (p.energy >= 100 ? 1 : 0) +
+      '|' + Math.round(p.guardMeter) + '|' + (p.guardBreak > 0 ? 1 : 0) +
+      '|' + p.dodgeCd.toFixed(1) + '|' + (p.blocking ? 1 : 0);
     if (sig === this.sig) return;
     this.sig = sig;
 
@@ -617,6 +677,22 @@ const TouchControls = {
       this.ultBtn.classList.toggle('cooling', !ready);
       const cdEl = this.ultBtn.querySelector('.tb-cd');
       if (cdEl) cdEl.textContent = ready ? '' : Math.round(p.energy) + '%';
+    }
+
+    if (this.blockBtn) {
+      const broken = p.guardBreak > 0 || p.guardMeter <= 0;
+      this.blockBtn.classList.toggle('depleted', broken);
+      this.blockBtn.classList.toggle('guarding', !!p.blocking);
+      if (this.blockGuardFill) {
+        this.blockGuardFill.style.width = U.clamp(p.guardMeter / GAME_RULES.guardMax, 0, 1) * 100 + '%';
+      }
+    }
+
+    if (this.dodgeBtn) {
+      const cooling = p.dodgeCd > .02;
+      this.dodgeBtn.classList.toggle('cooling', cooling);
+      const cdEl = this.dodgeBtn.querySelector('.tb-cd');
+      if (cdEl) cdEl.textContent = cooling ? (p.dodgeCd >= 1 ? Math.ceil(p.dodgeCd) : p.dodgeCd.toFixed(1)) : '';
     }
   }
 };
@@ -659,6 +735,13 @@ const Game = {
   buffSig2: '',
   lastHitSound: 0,
   resultShown: false,
+  training: false,
+  trainingSparring: false,
+  trainingAttackTimer: 2.2,
+  trainingTasks: null,
+  trainingSignature: '',
+  installPrompt: null,
+  orientationPaused: false,
 
   init() {
     this.canvas = $('gameCanvas');
@@ -679,8 +762,103 @@ const Game = {
     this.updateMuteUI();
     this.updateFullscreenUI();
     this.armMusic();
+    this.initInstall();
+    this.updateOrientation();
+    window.addEventListener('orientationchange', () => setTimeout(() => this.updateOrientation(), 180));
+    window.addEventListener('resize', () => this.updateOrientation());
+    document.addEventListener('fullscreenchange', () => this.updateOrientation());
     this.loop = this.loop.bind(this);
     requestAnimationFrame(this.loop);
+  },
+
+  initInstall() {
+    try {
+      const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+      document.body.classList.toggle('standalone-app', standalone);
+    } catch (e) { /* noop */ }
+    window.addEventListener('beforeinstallprompt', e => {
+      e.preventDefault();
+      this.installPrompt = e;
+      const btn = $('installBtn');
+      if (btn) btn.hidden = false;
+    });
+    window.addEventListener('appinstalled', () => {
+      this.installPrompt = null;
+      const btn = $('installBtn');
+      if (btn) btn.hidden = true;
+      this.toast('已安装到手机 · 从桌面启动', '#75e7ac', 2.2);
+    });
+    const touch = (navigator.maxTouchPoints || 0) > 0 ||
+      (window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches);
+    const standalone = document.body.classList.contains('standalone-app');
+    if (touch && !standalone) {
+      const btn = $('installBtn');
+      if (btn) btn.hidden = false;
+    }
+    if ('serviceWorker' in navigator && navigator.serviceWorker && /^https?:$/.test(location.protocol)) {
+      navigator.serviceWorker.register('./sw.js').catch(() => { /* 离线能力不可用时不影响游戏 */ });
+    }
+  },
+
+  promptInstall() {
+    GameAudio.init();
+    GameAudio.ui();
+    if (this.installPrompt) {
+      const prompt = this.installPrompt;
+      this.installPrompt = null;
+      prompt.prompt();
+      prompt.userChoice.then(choice => {
+        if (choice && choice.outcome === 'accepted') {
+          $('installBtn').hidden = true;
+          this.toast('正在安装手机版…', '#75e7ac', 1.8);
+        }
+      }).catch(() => { /* noop */ });
+      return;
+    }
+    $('installOverlay').hidden = false;
+  },
+
+  enterLandscape() {
+    const go = async () => {
+      try {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+      } catch (e) { /* 浏览器可能要求用户手势，按钮点击已提供 */ }
+      try {
+        if (screen.orientation && screen.orientation.lock) {
+          await screen.orientation.lock('landscape');
+        }
+      } catch (e) { /* iOS / 桌面浏览器通常不支持方向锁定 */ }
+      this.updateOrientation();
+    };
+    go();
+  },
+
+  updateOrientation() {
+    const touch = document.body.classList.contains('touch-device') ||
+      (navigator.maxTouchPoints || 0) > 0 ||
+      (window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches);
+    const portrait = window.innerHeight > window.innerWidth;
+    document.body.classList.toggle('is-landscape', touch && !portrait);
+    document.body.classList.toggle('is-portrait', touch && portrait);
+    const overlay = $('orientationOverlay');
+    if (!overlay) return;
+    const gameVisible = $('gameScreen') && !$('gameScreen').hidden;
+    const show = touch && portrait && gameVisible;
+    if (show) {
+      if (overlay.hidden) overlay.hidden = false;
+      if (this.state === 'playing') {
+        this.orientationPaused = true;
+        this.togglePause(true);
+        if (this.pauseOverlay) this.pauseOverlay.hidden = true;
+      }
+    } else if (!overlay.hidden) {
+      overlay.hidden = true;
+      if (this.orientationPaused && this.state === 'paused') this.togglePause(false);
+      this.orientationPaused = false;
+      if (this.pauseOverlay) this.pauseOverlay.hidden = true;
+    }
   },
 
   resize() {
@@ -688,7 +866,7 @@ const Game = {
     $('gameFrame').style.setProperty('--game-scale', scale.toFixed(4));
     // 触屏顶部按钮跟着游戏画框走，避免在 4:3 平板上压住 HUD。
     const frameTop = Math.max(0, (window.innerHeight - 900 * scale) / 2);
-    const touchTop = Math.max(10, frameTop + 125 * scale + 8);
+    const touchTop = Math.max(10, frameTop + 145 * scale + 8);
     $('gameScreen').style.setProperty('--touch-top', touchTop.toFixed(1) + 'px');
 
     // 画布逻辑坐标始终是 1600×900；只在设备像素密度/窗口变大时提高后备分辨率。
@@ -704,6 +882,7 @@ const Game = {
     }
     this.ctx.setTransform(w / 1600, 0, 0, h / 900, 0, 0);
     if (this.player && (this.state === 'paused' || this.state === 'over')) this.render();
+    this.updateOrientation();
   },
 
   armMusic() {
@@ -774,7 +953,8 @@ const Game = {
     }
   },
 
-  startMatch(config) {
+  startMatch(config, options = {}) {
+    this.training = options.training === true;
     this.config = {
       char: config.char, map: config.map, diff: config.diff, opp: config.opp
     };
@@ -786,10 +966,18 @@ const Game = {
     }
     this.enemyKey = oppKey;
     this.player = new Fighter(config.char, 'player', false);
-    this.enemy = new Fighter(oppKey, 'enemy', true);
-    this.enemy.ai.setDifficulty(config.diff);
-    this.player.reset(520, 1);
-    this.enemy.reset(1080, -1);
+    this.enemy = new Fighter(oppKey, 'enemy', !this.training);
+    if (this.training) {
+      // 木桩拥有更高生命，并且永远不会被击倒；伤害数字与连击照常统计。
+      this.enemy.maxHp = 3000;
+      this.enemy.hp = this.enemy.maxHp;
+      this.enemy.trainingDummy = true;
+    } else {
+      this.enemy.ai.setDifficulty(config.diff);
+    }
+    this.player.reset(this.training ? 720 : 520, 1);
+    this.enemy.reset(this.training ? 1040 : 1080, -1);
+    if (this.training) this.player.energy = 100;
     this.projectiles = [];
     this.zones = [];
     this.effects = [];
@@ -816,6 +1004,10 @@ const Game = {
     this.resultShown = false;
     this.buffSig1 = this.buffSig2 = '';
     this.lastHitSound = 0;
+    this.trainingSparring = false;
+    this.trainingAttackTimer = 2.2;
+    this.trainingTasks = { combo: false, skill: false, ult: false, defense: false };
+    this.trainingSignature = '';
 
     $('menuScreen').style.display = 'none';
     $('gameScreen').hidden = false;
@@ -825,26 +1017,141 @@ const Game = {
     $('statusToast').classList.remove('show');
     this.setPlayerHud();
     this.buildSkillDock();
+    this.setMatchChrome();
     TouchControls.sync(this.player.data);
     TouchControls.setEnabled(false);
     this.resize();
-    this.state = 'intro';
-    this.updateHUD(0);
     GameAudio.init();
     GameAudio.startAmbience();
     GameAudio.playMusic('battle', true);
-    this.showAnnounce('ROUND 01', 'STICK//ARENA', `${this.player.data.name}  VS  ${this.enemy.data.name}`, '', .9);
-    this.introStep = 0;
+
+    if (this.training) {
+      this.state = 'playing';
+      this.introTime = 0;
+      this.introStep = 0;
+      TouchControls.setEnabled(true);
+      this.updateHUD(0);
+      this.showAnnounce('TRAINING', '训练场', '木桩不会还手 · 自由练习', '', 1.6);
+      this.toast('训练场 · J 普攻 / U I O 技能 / L 大招 / K 跳跃 / S 格挡 / SHIFT 闪避', this.player.data.color2, 3.4);
+    } else {
+      this.state = 'intro';
+      this.updateHUD(0);
+      this.showAnnounce('ROUND 01', 'STICK//ARENA', `${this.player.data.name}  VS  ${this.enemy.data.name}`, '', .9);
+      this.introStep = 0;
+    }
+    this.updateOrientation();
+  },
+
+  startTraining(config) {
+    this.startMatch(config, { training: true });
+  },
+
+  restartCurrent() {
+    if (this.training) this.startTraining(this.config);
+    else this.startMatch(this.config);
+  },
+
+  resetTraining() {
+    if (!this.training || !this.player || !this.enemy) return;
+    this.player.reset(720, 1);
+    this.player.energy = 100;
+    this.enemy.reset(1040, -1);
+    this.enemy.hp = this.enemy.maxHp;
+    this.projectiles = [];
+    this.zones = [];
+    this.effects = [];
+    this.particles = [];
+    this.floaters = [];
+    this.comboCount = 0;
+    this.comboTimer = 0;
+    this.hudLag1 = this.player.hp;
+    this.hudLag2 = this.enemy.hp;
+    this.trainingTasks = { combo: false, skill: false, ult: false, defense: false };
+    this.trainingSignature = '';
+    this.trainingAttackTimer = 1.6;
+    this.updateHUD(0);
+    this.toast('木桩已重置 · 继续练习', '#75e7ac', 1.4);
+  },
+
+  setMatchChrome() {
+    const training = !!this.training;
+    $('matchMode').textContent = training ? 'TRAINING GROUND' : '1 VS 1 · STICK//ARENA';
+    $('timerLabel').textContent = training ? '自由练习' : '剩余时间';
+    $('trainingBar').hidden = !training;
+    document.body.classList.toggle('training-mode', training);
+    if (training) {
+      $('trainingBar').classList.remove('collapsed');
+      $('trainingToggleBtn').textContent = '收起';
+    }
+    this.updateTrainingSparBtn();
+    const dock = $('skillDock');
+    if (dock) dock.classList.toggle('training-dock', training);
+  },
+
+  updateTrainingSparBtn() {
+    const btn = $('trainingSparBtn');
+    if (!btn) return;
+    btn.textContent = this.trainingSparring ? '木桩反击：开' : '木桩反击：关';
+    btn.classList.toggle('on', !!this.trainingSparring);
+    btn.setAttribute('aria-pressed', this.trainingSparring ? 'true' : 'false');
+  },
+
+  updateTraining(dt) {
+    if (!this.training || !this.player || !this.enemy) return;
+    const p = this.player;
+    // 训练场里冷却恢复更快，充能也会缓慢自动回复，方便连续试技能。
+    p.energy = Math.min(100, p.energy + 8 * dt);
+    p.cooldowns = p.cooldowns.map(cd => Math.max(0, cd - dt * 1.2));
+    if (this.trainingSparring) {
+      this.trainingAttackTimer -= dt;
+      if (this.trainingAttackTimer <= 0) {
+        this.trainingAttackTimer = 2.1 + U.rand(0, .8);
+        if (this.enemy.canAct() && !p.dead && Math.abs(this.enemy.x - p.x) < 640) {
+          this.enemy.facing = p.x >= this.enemy.x ? 1 : -1;
+          this.enemy.startBasic(p, false);
+        }
+      }
+    }
+    if (p.stats.maxCombo >= 3) this.trainingTasks.combo = true;
+    if (p.action && p.action.type === 'skill') this.trainingTasks.skill = true;
+    if (p.action && p.action.type === 'ult') this.trainingTasks.ult = true;
+  },
+
+  updateTrainingUI() {
+    if (!this.training || !this.trainingTasks) return;
+    const p = this.player;
+    const t = this.trainingTasks;
+    const sig = [
+      t.combo, t.skill, t.ult, t.defense,
+      Math.round(p.stats.damage), p.stats.maxCombo, p.stats.ults,
+      Math.floor(p.energy)
+    ].join('|');
+    if (sig === this.trainingSignature) return;
+    this.trainingSignature = sig;
+    document.querySelectorAll('[data-training-task]').forEach(el => {
+      el.classList.toggle('done', !!t[el.dataset.trainingTask]);
+    });
+    $('trainingDamage').textContent = Math.round(p.stats.damage);
+    $('trainingCombo').textContent = p.stats.maxCombo;
+    $('trainingUlt').textContent = p.stats.ults;
+    $('trainingEnergy').textContent = Math.floor(p.energy) + '%';
   },
 
   showMenu() {
     this.state = 'menu';
+    this.training = false;
     TouchControls.setEnabled(false);
     $('gameScreen').hidden = true;
     $('menuScreen').style.display = '';
     this.pauseOverlay.hidden = true;
     this.resultOverlay.hidden = true;
     $('helpOverlay').hidden = true;
+    $('trainingBar').hidden = true;
+    $('orientationOverlay').hidden = true;
+    this.orientationPaused = false;
+    document.body.classList.remove('training-mode');
+    $('matchMode').textContent = '1 VS 1 · STICK//ARENA';
+    $('timerLabel').textContent = '剩余时间';
     GameAudio.stopAmbience();
     GameAudio.playMusic('menu', true);
     Menu.refresh();
@@ -871,15 +1178,21 @@ const Game = {
     $('p2Portrait').style.setProperty('--p-color', e.data.color);
     $('p2Portrait').querySelector('span').textContent = e.data.name[0];
     $('p1Name').textContent = p.data.name;
-    $('p2Name').textContent = e.data.name;
+    $('p2Name').textContent = this.training ? '训练木桩' : e.data.name;
     $('dockFighter').textContent = `${p.data.name} · ${p.data.title}`;
-    $('cpuBadge').textContent = `CPU · ${DIFFICULTIES[this.config.diff].name} · ${e.data.name}`;
+    $('cpuBadge').textContent = this.training
+      ? 'TRAINING · 木桩不还手'
+      : `CPU · ${DIFFICULTIES[this.config.diff].name} · ${e.data.name}`;
     $('p1HpText').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
     $('p2HpText').textContent = `${Math.ceil(e.hp)} / ${e.maxHp}`;
     $('p1EnergyText').textContent = '0';
     $('p2EnergyText').textContent = '0';
     $('p1EnergyFill').style.width = '0%';
     $('p2EnergyFill').style.width = '0%';
+    $('p1GuardFill').style.width = '100%';
+    $('p2GuardFill').style.width = '100%';
+    $('p1GuardText').textContent = '100';
+    $('p2GuardText').textContent = '100';
     $('p1HpFill').style.width = '100%';
     $('p2HpFill').style.width = '100%';
     $('p1HpLag').style.width = '100%';
@@ -935,7 +1248,7 @@ const Game = {
     ult.style.setProperty('--skill-color', d.ult.color);
     ult.style.setProperty('--skill-glow', U.hexA(d.ult.color, .3));
     ult.innerHTML = `
-      <span class="skill-key">R</span>
+      <span class="skill-key">L</span>
       <span class="skill-glyph">${d.ult.glyph}</span>
       <span class="skill-name">${d.ult.name}</span>
       <span class="skill-cd-mask"><b>0%</b></span>
@@ -967,14 +1280,16 @@ const Game = {
     return {
       left: Input.anyDown(['KeyA', 'ArrowLeft']),
       right: Input.anyDown(['KeyD', 'ArrowRight']),
-      jumpPressed: Input.anyPressed(['Space', 'ArrowUp']),
+      jumpPressed: Input.anyPressed(['KeyK']),
       normalPressed: Input.anyPressed(['KeyJ']),
       skills: [
-        Input.anyPressed(['KeyQ']),
-        Input.anyPressed(['KeyW']),
-        Input.anyPressed(['KeyE'])
+        Input.anyPressed(['KeyU']),
+        Input.anyPressed(['KeyI']),
+        Input.anyPressed(['KeyO'])
       ],
-      ult: Input.anyPressed(['KeyR'])
+      ult: Input.anyPressed(['KeyL']),
+      block: Input.anyDown(['KeyS']),
+      dodgePressed: Input.anyPressed(['ShiftLeft', 'ShiftRight'])
     };
   },
 
@@ -1019,15 +1334,17 @@ const Game = {
       return;
     }
 
-    const before = Math.ceil(this.timeLeft);
-    this.timeLeft -= dt;
-    if (this.timeLeft <= 0) {
-      this.timeLeft = 0;
-      this.finishByTime();
-      return;
+    if (!this.training) {
+      const before = Math.ceil(this.timeLeft);
+      this.timeLeft -= dt;
+      if (this.timeLeft <= 0) {
+        this.timeLeft = 0;
+        this.finishByTime();
+        return;
+      }
+      const after = Math.ceil(this.timeLeft);
+      if (after <= 5 && after !== before && after > 0) GameAudio.countdown(after === 1);
     }
-    const after = Math.ceil(this.timeLeft);
-    if (after <= 5 && after !== before && after > 0) GameAudio.countdown(after === 1);
 
     if (this.hitstop > 0) {
       this.hitstop -= dt;
@@ -1038,9 +1355,10 @@ const Game = {
     }
 
     const p1Intent = this.getPlayerIntent();
-    const p2Intent = this.enemy.ai.think(dt, this.player);
+    const p2Intent = this.training ? emptyIntent() : this.enemy.ai.think(dt, this.player);
     this.player.update(dt, this.enemy, p1Intent);
     this.enemy.update(dt, this.player, this.player.dead ? emptyIntent() : p2Intent);
+    if (this.training) this.updateTraining(dt);
     this.pushApart();
 
     if (this.state !== 'playing') {
@@ -1112,6 +1430,7 @@ const Game = {
       this.state = 'playing';
       TouchControls.setEnabled(true);
       this.lastBeep = 99;
+      this.updateOrientation();
     }
   },
 
@@ -1149,6 +1468,7 @@ const Game = {
   },
 
   onKO(loser, winner) {
+    if (this.training) return;
     if (this.state !== 'playing' && this.state !== 'intro') return;
     this.endReason = 'KO';
     this.endWinner = winner;
@@ -1231,17 +1551,40 @@ const Game = {
   dealDamage(attacker, target, amount, opts = {}) {
     if (!attacker || !target || target.dead || this.state !== 'playing') return false;
     if (target.invuln > 0 && !opts.ignoreInvuln) {
+      if (this.training && this.trainingSparring && target === this.player && this.trainingTasks) {
+        this.trainingTasks.defense = true;
+      }
       if (!opts.silent) this.floatText(target.x, target.y - 142, '闪避', '#9ff3ff', 16);
       return false;
     }
-    let damage = amount;
-    if (attacker.hasStatus('warBuff')) damage *= 1.25;
-    if (target.hasStatus('warBuff')) damage *= .76;
-    if (target.guardTimer > 0 || target.hasStatus('guard')) damage *= .45;
-    if (target.action && target.action.opts && target.action.opts.guard) damage *= .5;
+
+    let incoming = amount;
+    if (this.training && attacker === this.enemy) incoming *= .55;
+    if (attacker.hasStatus('warBuff')) incoming *= 1.25;
+    if (target.hasStatus('warBuff')) incoming *= .76;
+    if (target.guardTimer > 0 || target.hasStatus('guard')) incoming *= .45;
+    if (target.action && target.action.opts && target.action.opts.guard) incoming *= .5;
+
+    const dir = opts.dir !== undefined ? opts.dir : (attacker.facing || 1);
+    const targetFacing = target.facing || 1;
+    const blocked = !opts.unblockable &&
+      opts.type !== 'dot' &&
+      target.blocking &&
+      target.guardMeter > 0 &&
+      target.guardBreak <= 0 &&
+      dir * targetFacing < 0;
+
+    let damage = incoming;
+    if (blocked) damage *= GAME_RULES.blockDamage;
     damage = Math.max(1, Math.round(damage));
 
+    const trainingDummy = this.training && target === this.enemy;
+    const trainingPlayer = this.training && target === this.player;
     target.hp = Math.max(0, target.hp - damage);
+    // 训练木桩不会倒下：保留 35% 生命，方便持续练习连段与技能。
+    if (trainingDummy) target.hp = Math.max(target.maxHp * .35, target.hp);
+    // 训练模式也不让玩家真正倒下，方便反复练习格挡和闪避。
+    if (trainingPlayer) target.hp = Math.max(1, target.hp);
     target.hitFlash = .14;
     target.hurtTimer = .28;
     if (opts.energy !== false) {
@@ -1250,7 +1593,17 @@ const Game = {
     }
     attacker.stats.damage += damage;
 
-    if (opts.type !== 'dot') {
+    if (blocked) {
+      const guardCost = incoming * GAME_RULES.guardCost + (opts.heavy ? 12 : 5);
+      target.guardMeter = Math.max(0, target.guardMeter - guardCost);
+      target.guardRegenDelay = Math.max(target.guardRegenDelay, .45);
+      if (this.training && this.trainingSparring && target === this.player && this.trainingTasks) {
+        this.trainingTasks.defense = true;
+      }
+      if (target.guardMeter <= 0) target.breakGuard(dir);
+    }
+
+    if (opts.type !== 'dot' && !blocked) {
       const ct = this.worldTime;
       if (ct - attacker.stats.lastHitTime <= 1.35) attacker.stats.combo++;
       else attacker.stats.combo = 1;
@@ -1265,12 +1618,30 @@ const Game = {
         this.comboCount = 0;
         this.comboTimer = 0;
       }
+    } else if (blocked) {
+      // 被格挡的招式不算连击，避免防御反而帮助对手叠连段。
+      attacker.stats.combo = 0;
+      if (attacker === this.player) {
+        this.comboCount = 0;
+        this.comboTimer = 0;
+      }
     }
 
-    const dir = opts.dir !== undefined ? opts.dir : (attacker.facing || 1);
     if (opts.type !== 'dot') {
       const armor = target.action && (target.action.opts.superArmor || target.action.opts.armor);
-      if (!armor) {
+      if (blocked) {
+        if (target.guardBreak <= 0) {
+          target.hitstun = Math.max(target.hitstun, .08);
+          target.vx = dir * 55;
+        }
+      } else if (trainingDummy) {
+        // 木桩固定站位，只保留短暂受击反馈，不击退也不浮空。
+        target.action = null;
+        target.hitstun = Math.max(target.hitstun, .08);
+        target.vx = 0;
+        target.vy = 0;
+        target.onGround = true;
+      } else if (!armor) {
         target.action = null;
         target.hitstun = Math.max(target.hitstun, opts.stun !== undefined ? opts.stun : .16);
         target.vx = dir * (opts.kb !== undefined ? opts.kb : 120);
@@ -1287,28 +1658,46 @@ const Game = {
     if (opts.status) target.addStatus(opts.status.type, opts.status.time, opts.status);
 
     if (!opts.noFeedback) {
-      this.hitstop = Math.max(this.hitstop, opts.heavy ? .072 : (opts.type === 'dot' ? 0 : .035));
-      this.shake = Math.max(this.shake, opts.heavy ? 13 : (opts.type === 'dot' ? 1.5 : 4));
-      this.burst(target.x, target.y - 92, opts.color || attacker.data.color, opts.heavy ? 22 : 9, opts.heavy ? 330 : 180);
-      this.floatText(
-        target.x + U.rand(-12, 12), target.y - 138,
-        String(damage),
-        opts.color || '#fff', opts.heavy ? 34 : (opts.type === 'dot' ? 14 : 23),
-        opts.type === 'dot'
-      );
-      if (this.worldTime - this.lastHitSound > .035) {
-        this.lastHitSound = this.worldTime;
-        GameAudio.hit(!!opts.heavy);
-      }
-      if (target === this.player) {
-        this.hitVignette = Math.min(1, this.hitVignette + (opts.heavy ? .55 : .3));
-        GameAudio.hurt();
+      if (blocked) {
+        this.hitstop = Math.max(this.hitstop, opts.heavy ? .055 : .022);
+        this.shake = Math.max(this.shake, opts.heavy ? 6 : 3);
+        this.burst(target.x, target.y - 88, '#9fe8ff', opts.heavy ? 14 : 8, 160);
+        if (target.guardBreak <= 0) {
+          this.addEffect({
+            type: 'ring', x: target.x + targetFacing * 8, y: target.y - 80, radius: 54,
+            color: '#9fe8ff', life: .28, maxLife: .28, lineWidth: 3
+          });
+          this.floatText(target.x, target.y - 140, '格挡', '#c8f4ff', 18);
+          GameAudio.block(!!opts.heavy);
+        }
+        if (target === this.player) {
+          this.hitVignette = Math.min(1, this.hitVignette + (opts.heavy ? .4 : .2));
+          GameAudio.hurt();
+        }
+      } else {
+        this.hitstop = Math.max(this.hitstop, opts.heavy ? .072 : (opts.type === 'dot' ? 0 : .035));
+        this.shake = Math.max(this.shake, opts.heavy ? 13 : (opts.type === 'dot' ? 1.5 : 4));
+        this.burst(target.x, target.y - 92, opts.color || attacker.data.color, opts.heavy ? 22 : 9, opts.heavy ? 330 : 180);
+        this.floatText(
+          target.x + U.rand(-12, 12), target.y - 138,
+          String(damage),
+          opts.color || '#fff', opts.heavy ? 34 : (opts.type === 'dot' ? 14 : 23),
+          opts.type === 'dot'
+        );
+        if (this.worldTime - this.lastHitSound > .035) {
+          this.lastHitSound = this.worldTime;
+          GameAudio.hit(!!opts.heavy);
+        }
+        if (target === this.player) {
+          this.hitVignette = Math.min(1, this.hitVignette + (opts.heavy ? .55 : .3));
+          GameAudio.hurt();
+        }
       }
     } else if (opts.type === 'dot') {
       this.burst(target.x + U.rand(-14, 14), target.y - 60, opts.color || '#ff8a3d', 2, 70);
     }
 
-    if (target.hp <= 0) {
+    if (target.hp <= 0 && !trainingDummy && !trainingPlayer) {
       target.dead = true;
       target.action = null;
       target.hitstun = 99;
@@ -1323,7 +1712,7 @@ const Game = {
 
   onEnergyFull(fighter) {
     if (fighter === this.player) {
-      this.toast('终极充能完成 · 按 R 释放', fighter.data.color2, 2.4);
+      this.toast('终极充能完成 · 按 L 释放', fighter.data.color2, 2.4);
       GameAudio.charge();
     } else {
       this.toast('警告 · 对手终极技能已就绪', '#ff6d79', 2);
@@ -1668,6 +2057,7 @@ const Game = {
   },
 
   onUlt(fighter) {
+    if (this.training && fighter === this.player) this.trainingTasks.ult = true;
     if (fighter === this.player) {
       this.toast(`终极技能 · ${fighter.data.ult.name}`, fighter.data.color2, 1.3);
     } else {
@@ -1694,7 +2084,7 @@ const Game = {
     $('p1HpLag').style.width = (this.hudLag1 / p.maxHp * 100).toFixed(2) + '%';
     $('p2HpLag').style.width = (this.hudLag2 / e.maxHp * 100).toFixed(2) + '%';
     $('p1HpText').textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
-    $('p2HpText').textContent = `${Math.ceil(e.hp)} / ${e.maxHp}`;
+    $('p2HpText').textContent = this.training ? '∞' : `${Math.ceil(e.hp)} / ${e.maxHp}`;
     $('p1EnergyFill').style.width = p.energy.toFixed(1) + '%';
     $('p2EnergyFill').style.width = e.energy.toFixed(1) + '%';
     $('p1EnergyText').textContent = Math.floor(p.energy) + '%';
@@ -1702,9 +2092,20 @@ const Game = {
     $('p1EnergyFill').classList.toggle('full', p.energy >= 100);
     $('p2EnergyFill').classList.toggle('full', e.energy >= 100);
 
-    const time = U.formatTime(this.timeLeft);
+    const p1Guard = U.clamp(p.guardMeter / GAME_RULES.guardMax, 0, 1);
+    const p2Guard = U.clamp(e.guardMeter / GAME_RULES.guardMax, 0, 1);
+    $('p1GuardFill').style.width = (p1Guard * 100).toFixed(1) + '%';
+    $('p2GuardFill').style.width = (p2Guard * 100).toFixed(1) + '%';
+    $('p1GuardText').textContent = Math.round(p.guardMeter);
+    $('p2GuardText').textContent = Math.round(e.guardMeter);
+    $('p1GuardFill').classList.toggle('low', p1Guard < .3);
+    $('p2GuardFill').classList.toggle('low', p2Guard < .3);
+    $('p1GuardFill').classList.toggle('broken', p.guardBreak > 0);
+    $('p2GuardFill').classList.toggle('broken', e.guardBreak > 0);
+
+    const time = this.training ? '∞' : U.formatTime(this.timeLeft);
     $('timer').textContent = time;
-    $('timer').classList.toggle('urgent', this.timeLeft <= 20 && this.state !== 'over');
+    $('timer').classList.toggle('urgent', !this.training && this.timeLeft <= 20 && this.state !== 'over');
     const p1Low = p.hp / p.maxHp < .25;
     const p2Low = e.hp / e.maxHp < .25;
     $('p1HpFill').style.filter = p1Low ? 'saturate(1.4) brightness(1.15)' : '';
@@ -1716,6 +2117,7 @@ const Game = {
     TouchControls.update(p);
     this.updateBuffs(p, 'p1');
     this.updateBuffs(e, 'p2');
+    this.updateTrainingUI();
 
     if (this.comboCount >= 2 && this.comboTimer > 0) {
       this.comboEl.classList.add('show');
@@ -1754,7 +2156,11 @@ const Game = {
       else if (s.type === 'burn') list.push({ label: '灼烧', color: '#ff9a45', time: s.time });
     });
     if (f.empowerTimer > 0) list.push({ label: '强化', color: '#ffd85e', time: f.empowerTimer });
-    if (f.guardTimer > 0) list.push({ label: '格挡', color: f.data.color2, time: f.guardTimer });
+    if (f.guardTimer > 0) list.push({ label: '技能格挡', color: f.data.color2, time: f.guardTimer });
+    if (f.blocking) list.push({ label: '格挡中', color: '#9fe8ff', time: 99 });
+    if (f.dodgeTime > 0) list.push({ label: '闪避', color: '#aef4ff', time: f.dodgeTime });
+    if (f.dodgeCd > .05) list.push({ label: '闪避冷却', color: '#aef4ff', time: f.dodgeCd });
+    if (f.guardBreak > 0) list.push({ label: '破防', color: '#ff7b7b', time: f.guardBreak });
     if (f.energy >= 100) list.push({ label: '大招就绪', color: f.data.color2, time: 99 });
     const sig = list.map(s => s.label + Math.ceil(s.time)).join('|');
     if ((which === 'p1' ? this.buffSig1 : this.buffSig2) === sig) return;
@@ -1764,6 +2170,50 @@ const Game = {
   },
 
   /* ---------------- 渲染 ---------------- */
+
+  drawDefense(ctx, f) {
+    if (f.blocking) {
+      ctx.save();
+      ctx.translate(f.x + f.facing * 10, f.y - 84);
+      ctx.scale(f.facing, 1);
+      ctx.globalAlpha = .72;
+      ctx.strokeStyle = f.guardMeter < 30 ? '#ffb36b' : '#9fe8ff';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(0, 0, 58, -1.02, 1.02);
+      ctx.stroke();
+      ctx.globalAlpha = .24;
+      ctx.lineWidth = 12;
+      ctx.beginPath();
+      ctx.arc(0, 0, 58, -.88, .88);
+      ctx.stroke();
+      ctx.restore();
+    }
+    if (f.guardBreak > 0) {
+      ctx.save();
+      ctx.translate(f.x, f.y - 84);
+      ctx.globalAlpha = .5;
+      ctx.strokeStyle = '#ff7b7b';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 7]);
+      ctx.beginPath();
+      ctx.arc(0, 0, 62, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    if (f.dodgeTime > 0) {
+      ctx.save();
+      ctx.globalAlpha = .2;
+      ctx.strokeStyle = '#aef4ff';
+      ctx.lineWidth = 3;
+      for (let i = 1; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.arc(f.x - f.dodgeDir * i * 22, f.y - 72, 22 - i * 5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  },
 
   render() {
     if (this.state === 'menu' || !this.player) return;
@@ -1788,7 +2238,10 @@ const Game = {
     Render.drawShadow(ctx, this.player);
     Render.drawShadow(ctx, this.enemy);
 
-    [this.player, this.enemy].forEach(f => Render.drawFighter(ctx, f, this.worldTime));
+    [this.player, this.enemy].forEach(f => {
+      Render.drawFighter(ctx, f, this.worldTime);
+      this.drawDefense(ctx, f);
+    });
 
     for (const p of this.projectiles) {
       Render.drawProjectileTrail(ctx, p, this.worldTime);
@@ -1832,5 +2285,9 @@ window.addEventListener('load', () => {
     setTimeout(() => {
       Game.startMatch({ char: 'warrior', map: 'lava', diff: 'normal', opp: 'mage' });
     }, 250);
+  } else if (params.get('training') === '1') {
+    setTimeout(() => Game.startTraining(Menu.config), 250);
+  } else if (params.get('quick') === '1') {
+    setTimeout(() => Game.startMatch(Menu.config), 250);
   }
 });

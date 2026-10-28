@@ -1,0 +1,51 @@
+{
+  "name": "STICK ARENA · 火柴人竞技场",
+  "short_name": "STICK ARENA",
+  "description": "四名斗士、三种技能、终极连招。横屏开战的火柴人竞技场。",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "fullscreen"],
+  "orientation": "landscape",
+  "background_color": "#05070b",
+  "theme_color": "#07090d",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "快速开战",
+      "short_name": "开战",
+      "description": "直接进入一场 1 VS 1 对决",
+      "url": "./?quick=1",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "训练场",
+      "short_name": "训练",
+      "description": "对着木桩练习连招与技能",
+      "url": "./?training=1",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

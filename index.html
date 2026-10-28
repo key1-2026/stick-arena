@@ -4,7 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#07090d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="STICK ARENA">
+  <meta name="application-name" content="STICK ARENA">
+  <meta name="description" content="STICK//ARENA 火柴人竞技场 — 四名斗士、三种技能、终极连招，横屏开战。">
   <title>STICK//ARENA · 火柴人竞技场</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -23,11 +32,17 @@
         </div>
         <div class="header-right">
           <div class="live-pill"><i></i> LOCAL ARENA</div>
+          <button class="icon-btn quick-start" id="quickStartBtn" type="button" aria-label="快速开始对战">
+            <span>▶</span><span class="btn-label">开战</span>
+          </button>
           <button class="icon-btn" id="helpBtn" type="button" aria-label="玩法说明">
             <span class="icon-help">?</span><span class="btn-label">玩法</span>
           </button>
           <button class="icon-btn" id="muteBtn" type="button" aria-label="切换声音">
             <span id="muteIcon">♪</span><span class="btn-label" id="muteLabel">声音</span>
+          </button>
+          <button class="icon-btn install-btn" id="installBtn" type="button" aria-label="安装手机版" hidden>
+            <span>↓</span><span class="btn-label">安装</span>
           </button>
         </div>
       </header>
@@ -135,7 +150,13 @@
             <span class="start-arrow">→</span>
             <span class="start-shine"></span>
           </button>
-          <p class="start-hint"><kbd>SPACE</kbd> 跳跃 · <kbd>J</kbd> 普攻 · <kbd>Q W E</kbd> 技能 · <kbd>R</kbd> 大招</p>
+          <p class="start-hint"><kbd>K</kbd> 跳跃 · <kbd>J</kbd> 普攻 · <kbd>U I O</kbd> 技能 · <kbd>L</kbd> 大招<br><kbd>S</kbd> 格挡 · <kbd>SHIFT</kbd> 闪避</p>
+
+          <button id="trainingBtn" class="training-entry" type="button">
+            <span class="te-icon">◎</span>
+            <span class="te-copy"><b>训练场</b><small>TRAINING GROUND · 木桩 / 技能练习</small></span>
+            <span class="te-arrow">→</span>
+          </button>
 
           <div class="selected-summary" id="selectedSummary">
             <span class="ss-label">YOUR LOADOUT</span>
@@ -174,14 +195,19 @@
                   <div class="energy-track"><div class="energy-fill" id="p1EnergyFill"></div><span class="energy-ticks"></span></div>
                   <span class="energy-num" id="p1EnergyText">0</span>
                 </div>
+                <div class="guard-row">
+                  <span class="guard-label">格挡</span>
+                  <div class="guard-track"><div class="guard-fill" id="p1GuardFill"></div></div>
+                  <span class="guard-num" id="p1GuardText">100</span>
+                </div>
                 <div class="buff-row" id="p1Buffs"></div>
               </div>
             </div>
 
             <div class="timer-box">
-              <div class="match-mode">1 VS 1 · STICK//ARENA</div>
+              <div class="match-mode" id="matchMode">1 VS 1 · STICK//ARENA</div>
               <div class="timer" id="timer">03:00</div>
-              <div class="timer-label">剩余时间</div>
+              <div class="timer-label" id="timerLabel">剩余时间</div>
             </div>
 
             <div class="duelist p2">
@@ -199,6 +225,11 @@
                   <span class="energy-label">充能</span>
                   <div class="energy-track"><div class="energy-fill" id="p2EnergyFill"></div><span class="energy-ticks"></span></div>
                   <span class="energy-num" id="p2EnergyText">0</span>
+                </div>
+                <div class="guard-row">
+                  <span class="guard-label">格挡</span>
+                  <div class="guard-track"><div class="guard-fill" id="p2GuardFill"></div></div>
+                  <span class="guard-num" id="p2GuardText">100</span>
                 </div>
                 <div class="buff-row p2-buffs" id="p2Buffs"></div>
               </div>
@@ -226,7 +257,7 @@
             <span id="dockFighter">战士 · 铁壁先锋</span>
           </div>
           <div class="dock-slots" id="dockSlots"></div>
-          <div class="dock-hint"><span>技能冷却会随时间恢复</span><span>命中 / 受击积攒终极充能</span></div>
+          <div class="dock-hint"><span>S 格挡 · SHIFT 闪避</span><span>技能冷却会随时间恢复</span><span>命中 / 受击积攒终极充能</span></div>
         </div>
 
         <div id="announce" class="announce">
@@ -249,10 +280,12 @@
             </div>
             <div class="pause-shortcuts">
               <span><kbd>A</kbd><kbd>D</kbd> 移动</span>
-              <span><kbd>SPACE</kbd> 跳跃 / 二段跳</span>
+              <span><kbd>K</kbd> 跳跃 / 二段跳</span>
               <span><kbd>J</kbd> 普攻</span>
-              <span><kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd> 技能</span>
-              <span><kbd>R</kbd> 终极技能</span>
+              <span><kbd>U</kbd><kbd>I</kbd><kbd>O</kbd> 技能</span>
+              <span><kbd>L</kbd> 终极技能</span>
+              <span><kbd>S</kbd> 格挡</span>
+              <span><kbd>SHIFT</kbd> 闪避</span>
             </div>
           </div>
         </div>
@@ -304,21 +337,29 @@
           <button class="touch-btn touch-dir" data-touch="KeyA" type="button" aria-label="向左移动"><b>◀</b></button>
           <button class="touch-btn touch-dir" data-touch="KeyD" type="button" aria-label="向右移动"><b>▶</b></button>
         </div>
+        <div class="touch-cluster touch-defense">
+          <button class="touch-btn touch-block" data-touch="KeyS" type="button" aria-label="格挡 S，按住抵挡正面攻击">
+            <b class="tb-main">挡</b><span class="tb-key">S</span><span class="tb-guard"><i></i></span>
+          </button>
+          <button class="touch-btn touch-dodge" data-touch="ShiftLeft" type="button" aria-label="闪避 Shift">
+            <b class="tb-main">闪</b><span class="tb-key">SH</span><span class="tb-cd"></span>
+          </button>
+        </div>
         <div class="touch-cluster touch-actions">
-          <button class="touch-btn touch-skill" data-touch="KeyQ" data-slot="0" type="button" aria-label="技能 Q">
-            <span class="tb-key">Q</span><b class="tb-glyph">技</b><span class="tb-cd"></span>
+          <button class="touch-btn touch-skill" data-touch="KeyU" data-slot="0" type="button" aria-label="技能 U">
+            <span class="tb-key">U</span><b class="tb-glyph">技</b><span class="tb-cd"></span>
           </button>
-          <button class="touch-btn touch-skill" data-touch="KeyW" data-slot="1" type="button" aria-label="技能 W">
-            <span class="tb-key">W</span><b class="tb-glyph">技</b><span class="tb-cd"></span>
+          <button class="touch-btn touch-skill" data-touch="KeyI" data-slot="1" type="button" aria-label="技能 I">
+            <span class="tb-key">I</span><b class="tb-glyph">技</b><span class="tb-cd"></span>
           </button>
-          <button class="touch-btn touch-skill" data-touch="KeyE" data-slot="2" type="button" aria-label="技能 E">
-            <span class="tb-key">E</span><b class="tb-glyph">技</b><span class="tb-cd"></span>
+          <button class="touch-btn touch-skill" data-touch="KeyO" data-slot="2" type="button" aria-label="技能 O">
+            <span class="tb-key">O</span><b class="tb-glyph">技</b><span class="tb-cd"></span>
           </button>
-          <button class="touch-btn touch-jump" data-touch="Space" type="button" aria-label="跳跃">
-            <b class="tb-main">跳</b><span class="tb-key">×2</span>
+          <button class="touch-btn touch-jump" data-touch="KeyK" type="button" aria-label="跳跃 K">
+            <b class="tb-main">跳</b><span class="tb-key">K</span>
           </button>
-          <button class="touch-btn touch-ult" data-touch="KeyR" type="button" aria-label="终极技能 R">
-            <span class="tb-key">R</span><b class="tb-glyph">终</b><span class="tb-cd"></span>
+          <button class="touch-btn touch-ult" data-touch="KeyL" type="button" aria-label="终极技能 L">
+            <span class="tb-key">L</span><b class="tb-glyph">终</b><span class="tb-cd"></span>
           </button>
           <button class="touch-btn touch-attack" data-touch="KeyJ" type="button" aria-label="普通攻击 J">
             <b class="tb-main">攻</b><span class="tb-key">J</span>
@@ -326,8 +367,69 @@
         </div>
       </div>
 
+      <div class="training-bar" id="trainingBar" hidden>
+        <div class="tr-head">
+          <span class="tr-title"><i></i>训练场 <small>TRAINING GROUND</small></span>
+          <button class="tr-toggle" id="trainingToggleBtn" type="button">收起</button>
+        </div>
+        <div class="tr-body">
+          <p class="tr-lead">木桩默认不还手。先打一套三连击，再测试技能与大招；开启“木桩反击”可练习格挡和闪避。</p>
+          <div class="tr-keys">
+            <span><kbd>J</kbd> 三段普攻</span>
+            <span><kbd>U</kbd><kbd>I</kbd><kbd>O</kbd> 技能</span>
+            <span><kbd>L</kbd> 大招</span>
+            <span><kbd>K</kbd> 跳跃</span>
+            <span><kbd>S</kbd> 格挡</span>
+            <span><kbd>SHIFT</kbd> 闪避</span>
+          </div>
+          <div class="tr-tasks">
+            <span data-training-task="combo"><i>01</i>完成一次三连击</span>
+            <span data-training-task="skill"><i>02</i>使用一次技能</span>
+            <span data-training-task="ult"><i>03</i>释放一次大招</span>
+            <span data-training-task="defense"><i>04</i>格挡或闪避一次攻击</span>
+          </div>
+          <div class="tr-stats">
+            <span>伤害 <b id="trainingDamage">0</b></span>
+            <span>最高连击 <b id="trainingCombo">0</b></span>
+            <span>大招 <b id="trainingUlt">0</b></span>
+            <span>充能 <b id="trainingEnergy">100%</b></span>
+          </div>
+          <div class="tr-actions">
+            <button id="trainingSparBtn" type="button" aria-pressed="false">木桩反击：关</button>
+            <button id="trainingResetBtn" type="button">重置木桩</button>
+            <button id="trainingExitBtn" type="button">退出训练</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="orientation-overlay" id="orientationOverlay" hidden>
+        <div class="orientation-card">
+          <span class="orientation-icon">↻</span>
+          <span class="eyebrow">LANDSCAPE MODE</span>
+          <h2>请横屏游玩</h2>
+          <p>横屏能看到完整战场，触控按键也会更大、更好按。</p>
+          <button class="primary-btn" id="orientationBtn" type="button">进入横屏全屏 →</button>
+          <small>如果浏览器不支持自动旋转，请手动把手机横过来。</small>
+        </div>
+      </div>
+
       <div class="rotate-note"><span>↻</span> 横屏体验更佳</div>
     </section>
+
+    <div class="modal-layer install-layer" id="installOverlay" hidden>
+      <div class="modal-card install-card">
+        <button class="modal-close" id="installClose" type="button">×</button>
+        <span class="eyebrow">MOBILE APP / PWA</span>
+        <h2>安装手机版</h2>
+        <p>把 STICK//ARENA 添加到主屏幕，横屏全屏启动，像 App 一样游玩。</p>
+        <div class="install-steps">
+          <div><b>Android · Chrome</b><span>右上角菜单 → “安装应用”或“添加到主屏幕”</span></div>
+          <div><b>iPhone · Safari</b><span>底部分享按钮 → “添加到主屏幕”</span></div>
+        </div>
+        <div class="install-note">安装与离线缓存需要 HTTPS 环境；当前若使用 HTTP，请先正常游玩，等证书签发后再安装。</div>
+        <button class="primary-btn" id="installDoneBtn" type="button">知道了</button>
+      </div>
+    </div>
 
     <div class="modal-layer help-layer" id="helpOverlay" hidden>
       <div class="modal-card help-card">
@@ -339,12 +441,15 @@
             <h4>操作</h4>
             <div class="key-list">
               <div><span><kbd>A</kbd><kbd>D</kbd></span><p>左右移动</p></div>
-              <div><span><kbd>SPACE</kbd></span><p>跳跃 · 空中再按一次二段跳</p></div>
+              <div><span><kbd>K</kbd></span><p>跳跃 · 空中再按一次二段跳</p></div>
               <div><span><kbd>J</kbd></span><p>专属普攻 · 连续按键打出三段连击</p></div>
-              <div><span><kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd></span><p>三个专属技能，各自拥有冷却</p></div>
-              <div><span><kbd>R</kbd></span><p>终极技能，需要 100% 充能</p></div>
+              <div><span><kbd>U</kbd><kbd>I</kbd><kbd>O</kbd></span><p>三个专属技能，各自拥有冷却</p></div>
+              <div><span><kbd>L</kbd></span><p>终极技能，需要 100% 充能</p></div>
+              <div><span><kbd>S</kbd></span><p>格挡 · 按住抵挡正面攻击并消耗格挡值</p></div>
+              <div><span><kbd>SHIFT</kbd></span><p>闪避 · 短距离位移，期间无敌，有冷却</p></div>
               <div><span><kbd>ESC</kbd></span><p>暂停 / 继续</p></div>
-              <div><span><kbd>手机</kbd></span><p>左侧移动，右侧跳跃、普攻、技能与大招</p></div>
+              <div><span><kbd>手机</kbd></span><p>左侧移动，右侧跳跃、普攻、技能与大招；右侧上方“挡 / 闪”用于格挡和闪避</p></div>
+              <div><span><kbd>训练</kbd></span><p>主菜单进入训练场；开启“木桩反击”可练习格挡、闪避与破防时机</p></div>
             </div>
           </div>
           <div class="help-col">
@@ -353,6 +458,8 @@
               <li><b>三分钟决胜</b><span>倒计时归零时，剩余生命百分比更高的一方获胜；生命归零则直接 KO。</span></li>
               <li><b>双向充能</b><span>命中敌人或受到伤害都会积攒终极充能。打得越凶，大招来得越快。</span></li>
               <li><b>技能冷却</b><span>三个技能独立冷却，槽位上的数字和遮罩显示剩余时间。</span></li>
+              <li><b>格挡与破防</b><span>格挡只挡正面并持续消耗格挡值；格挡值耗尽会破防，短时间内无法再挡。</span></li>
+              <li><b>闪避时机</b><span>闪避有短暂无敌帧和冷却，适合穿过弹道或躲开大招，但不能连续无脑使用。</span></li>
               <li><b>角色克制</b><span>远程擅长拉扯，近战擅长贴脸。利用跳跃躲避弹道与地面火场。</span></li>
             </ul>
             <div class="help-energy">

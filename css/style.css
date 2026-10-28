@@ -1281,6 +1281,61 @@ kbd {
   text-align: right;
 }
 .p2 .energy-num { text-align: left; }
+.guard-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.p2 .guard-row { flex-direction: row-reverse; width: 100%; }
+.guard-label {
+  color: rgba(255,255,255,.3);
+  font-size: 6px;
+  letter-spacing: .09em;
+}
+.guard-track {
+  position: relative;
+  flex: 1;
+  height: 5px;
+  border: 1px solid rgba(159,232,255,.14);
+  background: rgba(0,0,0,.52);
+  overflow: hidden;
+}
+.guard-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  background: linear-gradient(90deg, #4fbde7, #b8f2ff);
+  box-shadow: 0 0 9px rgba(111,217,255,.55);
+  transition: width .16s ease-out, background .2s;
+}
+.p2 .guard-fill {
+  left: auto;
+  right: 0;
+  background: linear-gradient(270deg, #4fbde7, #b8f2ff);
+}
+.guard-fill.low {
+  background: linear-gradient(90deg, #ff8a58, #ffd28c);
+  box-shadow: 0 0 9px rgba(255,138,88,.5);
+}
+.p2 .guard-fill.low { background: linear-gradient(270deg, #ff8a58, #ffd28c); }
+.guard-fill.broken {
+  background: #ff5b72;
+  box-shadow: 0 0 12px rgba(255,91,114,.8);
+  animation: guardBroken .55s ease-in-out infinite;
+}
+.guard-num {
+  width: 24px;
+  color: rgba(187,238,255,.72);
+  font-family: var(--mono);
+  font-size: 7px;
+  text-align: right;
+}
+.p2 .guard-num { text-align: left; }
+@keyframes guardBroken {
+  0%, 100% { opacity: .45; }
+  50% { opacity: 1; }
+}
+
 .buff-row {
   display: flex;
   gap: 4px;
@@ -1589,12 +1644,15 @@ kbd {
 .skill-card.ult .skill-sub { display: none; }
 .dock-hint {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
+  gap: 3px 12px;
   margin-top: 6px;
   color: rgba(255,255,255,.28);
   font-size: 7.5px;
   letter-spacing: .05em;
 }
+.dock-hint span:first-child { color: rgba(159,232,255,.46); }
 
 /* 连击 */
 
@@ -2034,6 +2092,9 @@ kbd {
 .touch-device .energy-label { font-size: 10px; }
 .touch-device .energy-track { height: 11px; }
 .touch-device .energy-num { width: 38px; font-size: 14px; }
+.touch-device .guard-label { font-size: 10px; }
+.touch-device .guard-track { height: 9px; }
+.touch-device .guard-num { width: 34px; font-size: 13px; }
 .touch-device .buff-chip { font-size: 9px; }
 .touch-device .timer { font-size: 64px; }
 .touch-device .match-mode { font-size: 9px; }
@@ -2152,6 +2213,13 @@ kbd {
   font-weight: 400;
 }
 
+.touch-defense {
+  right: max(12px, env(safe-area-inset-right));
+  bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--tb) * 2.08 + 15px);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
 .touch-actions {
   right: max(12px, env(safe-area-inset-right));
   grid-template-columns: calc(var(--tb) * .9) calc(var(--tb) * .9) calc(var(--tb) * 1.18);
@@ -2162,9 +2230,51 @@ kbd {
   justify-items: center;
   align-items: center;
 }
-.touch-skill[data-touch="KeyQ"] { grid-area: q; }
-.touch-skill[data-touch="KeyW"] { grid-area: w; }
-.touch-skill[data-touch="KeyE"] { grid-area: e; }
+.touch-block,
+.touch-dodge {
+  width: calc(var(--tb) * .82);
+  height: calc(var(--tb) * .82);
+  border-radius: 50%;
+  --tb-color: #8fdcff;
+}
+.touch-dodge { --tb-color: #aef4ff; }
+.touch-block .tb-main,
+.touch-dodge .tb-main { font-size: calc(var(--tb) * .29); }
+.touch-block .tb-key,
+.touch-dodge .tb-key { top: 4px; left: 6px; font-size: 6px; }
+.touch-block.guarding {
+  border-color: rgba(159,232,255,.9);
+  box-shadow: 0 0 22px rgba(111,217,255,.4), inset 0 0 18px rgba(159,232,255,.14);
+}
+.touch-block.depleted {
+  --tb-color: #ff8a6b;
+  opacity: .58;
+}
+.touch-dodge.cooling {
+  opacity: .5;
+}
+.touch-dodge.cooling .tb-main { opacity: .4; }
+.touch-block .tb-guard {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 5px;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: rgba(0,0,0,.55);
+}
+.touch-block .tb-guard i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #9fe8ff;
+  box-shadow: 0 0 6px #9fe8ff;
+  transition: width .15s ease-out;
+}
+.touch-skill[data-slot="0"] { grid-area: q; }
+.touch-skill[data-slot="1"] { grid-area: w; }
+.touch-skill[data-slot="2"] { grid-area: e; }
 .touch-ult { grid-area: r; align-self: end; }
 .touch-attack { grid-area: a; justify-self: end; align-self: end; }
 
@@ -2228,7 +2338,8 @@ kbd {
 }
 .touch-ult.ready .tb-glyph { color: #fff6d5; text-shadow: 0 0 16px var(--tb-color, #ffd86b); }
 .touch-controls.paused .touch-move,
-.touch-controls.paused .touch-actions { opacity: 0; }
+.touch-controls.paused .touch-actions,
+.touch-controls.paused .touch-defense { opacity: 0; }
 .touch-controls.paused .touch-btn { pointer-events: none; }
 
 .tb-main, .tb-glyph {
@@ -2478,4 +2589,358 @@ kbd {
   }
   .touch-device .pause-card { transform: scale(2.35); }
   .touch-device .result-card { transform: scale(1.7); }
+}
+
+/* =========================================================
+   训练场 · 手机应用 · 横屏模式
+   ========================================================= */
+
+.install-btn[hidden],
+.training-bar[hidden],
+.orientation-overlay[hidden],
+#installOverlay[hidden] { display: none !important; }
+
+.quick-start { display: none; }
+.standalone-app .install-btn { display: none !important; }
+
+@media (max-width: 1240px) and (min-width: 901px) {
+  .config-panel .training-entry { grid-column: 1 / 2; }
+}
+
+/* 主菜单训练场入口 */
+.training-entry {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  margin-top: 9px;
+  padding: 9px 13px;
+  border: 1px solid rgba(117, 231, 172, .26);
+  background:
+    linear-gradient(100deg, rgba(117, 231, 172, .12), rgba(117, 231, 172, .025) 62%),
+    rgba(6, 13, 15, .52);
+  color: var(--text);
+  text-align: left;
+  transition: border-color .18s, background .18s, transform .18s;
+}
+.training-entry:hover {
+  border-color: rgba(117, 231, 172, .62);
+  background:
+    linear-gradient(100deg, rgba(117, 231, 172, .2), rgba(117, 231, 172, .04) 68%),
+    rgba(6, 13, 15, .62);
+  transform: translateY(-1px);
+}
+.te-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 27px;
+  width: 27px;
+  height: 27px;
+  border: 1px solid rgba(117, 231, 172, .46);
+  border-radius: 50%;
+  color: var(--green);
+  font-family: var(--mono);
+  font-size: 16px;
+  line-height: 1;
+}
+.te-copy { display: grid; gap: 2px; min-width: 0; }
+.te-copy b {
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+.te-copy small {
+  overflow: hidden;
+  color: var(--muted-2);
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: .06em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.te-arrow { margin-left: auto; color: var(--green); font-family: var(--mono); font-size: 14px; }
+
+/* 对局内训练面板：放在画面外侧，使用屏幕像素，不随 1600×900 画框缩小 */
+.training-bar {
+  position: absolute;
+  z-index: 38;
+  top: calc(var(--touch-top, 120px) + 3px);
+  left: max(12px, env(safe-area-inset-left));
+  width: min(332px, calc(100vw - 24px));
+  border: 1px solid rgba(117, 231, 172, .3);
+  background:
+    linear-gradient(135deg, rgba(117, 231, 172, .075), transparent 42%),
+    rgba(4, 9, 13, .9);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, .46), inset 0 0 0 1px rgba(255, 255, 255, .025);
+  color: var(--text);
+  font-family: var(--sans);
+  pointer-events: auto;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  max-height: calc(100dvh - var(--touch-top, 120px) - 88px);
+  overflow: hidden;
+  overscroll-behavior: contain;
+  transition: width .2s, border-color .2s;
+}
+.training-bar .tr-body {
+  max-height: calc(100dvh - var(--touch-top, 120px) - 135px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.tr-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, .07);
+}
+.tr-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+.tr-title i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 12px var(--green);
+  animation: livePulse 1.4s ease-in-out infinite;
+}
+.tr-title small {
+  color: var(--muted-2);
+  font-family: var(--mono);
+  font-size: 7px;
+  font-weight: 400;
+  letter-spacing: .1em;
+}
+.tr-toggle {
+  padding: 4px 8px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .08em;
+}
+.tr-toggle:hover { border-color: var(--green); color: var(--green); }
+.tr-body { padding: 10px 12px 11px; }
+.tr-lead {
+  margin-bottom: 9px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.55;
+}
+.tr-keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  padding: 7px 8px;
+  border: 1px solid rgba(255, 255, 255, .06);
+  background: rgba(255, 255, 255, .025);
+  color: var(--muted);
+  font-size: 9px;
+}
+.tr-keys span { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.tr-keys kbd { color: #e9f7ef; border-color: rgba(117, 231, 172, .26); background: rgba(117, 231, 172, .08); }
+.tr-tasks { display: grid; gap: 2px; margin-top: 8px; }
+.tr-tasks span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 22px;
+  padding: 2px 2px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.tr-tasks i {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  color: var(--muted-2);
+  font-family: var(--mono);
+  font-size: 7px;
+  font-style: normal;
+}
+.tr-tasks span.done { color: #bfffe0; }
+.tr-tasks span.done i {
+  border-color: rgba(117, 231, 172, .55);
+  background: rgba(117, 231, 172, .13);
+  color: var(--green);
+}
+.tr-tasks span.done i::before { content: "✓"; font-size: 10px; }
+.tr-tasks span.done i { font-size: 0; }
+.tr-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, .07);
+}
+.tr-stats span {
+  display: grid;
+  gap: 1px;
+  color: var(--muted-2);
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: .03em;
+}
+.tr-stats b {
+  color: var(--text);
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.tr-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.tr-actions button {
+  flex: 1;
+  height: 27px;
+  border: 1px solid rgba(255, 255, 255, .13);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .04em;
+}
+.tr-actions button:first-child { border-color: rgba(117, 231, 172, .34); color: var(--green); }
+.tr-actions button.on {
+  border-color: rgba(255, 138, 107, .62);
+  color: #ffb49a;
+  background: rgba(255, 122, 69, .08);
+}
+.tr-actions button:hover { background: rgba(255, 255, 255, .06); color: var(--text); }
+.training-bar.collapsed { width: 196px; }
+.training-bar.collapsed .tr-body { display: none; }
+.training-bar.collapsed .tr-head { border-bottom: 0; }
+
+/* 竖屏提示 / 横屏入口 */
+.orientation-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: radial-gradient(circle at 50% 38%, rgba(117, 231, 172, .1), transparent 44%), rgba(2, 5, 8, .86);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.orientation-card {
+  width: min(430px, 88vw);
+  padding: 28px 26px 24px;
+  border: 1px solid rgba(117, 231, 172, .3);
+  background: linear-gradient(150deg, rgba(117, 231, 172, .08), transparent 54%), rgba(7, 13, 18, .94);
+  text-align: center;
+  box-shadow: 0 26px 80px rgba(0, 0, 0, .58);
+}
+.orientation-icon {
+  display: block;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 14px;
+  border: 1px solid rgba(117, 231, 172, .44);
+  border-radius: 50%;
+  color: var(--green);
+  font-family: var(--mono);
+  font-size: 29px;
+  line-height: 54px;
+  transform: rotate(-24deg);
+}
+.orientation-card h2 {
+  margin: 7px 0 8px;
+  font-family: var(--display);
+  font-size: 34px;
+  letter-spacing: .07em;
+}
+.orientation-card p { color: var(--muted); font-size: 13px; line-height: 1.65; }
+.orientation-card .primary-btn { width: 100%; margin-top: 18px; }
+.orientation-card small {
+  display: block;
+  margin-top: 12px;
+  color: var(--muted-2);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+/* 安装手机版弹窗 */
+.install-layer { z-index: 260; }
+.install-card {
+  position: relative;
+  width: min(470px, 92vw);
+  padding: 30px 28px 24px;
+  border: 1px solid rgba(117, 231, 172, .22);
+  background:
+    radial-gradient(600px 260px at 88% -10%, rgba(117, 231, 172, .1), transparent 62%),
+    var(--panel-solid);
+}
+.install-card h2 { margin: 8px 0 8px; font-family: var(--display); font-size: 36px; letter-spacing: .06em; }
+.install-card > p { color: var(--muted); font-size: 12px; line-height: 1.65; }
+.install-steps { display: grid; gap: 7px; margin: 16px 0 12px; }
+.install-steps div {
+  display: grid;
+  gap: 2px;
+  padding: 9px 10px;
+  border: 1px solid rgba(255, 255, 255, .07);
+  background: rgba(255, 255, 255, .025);
+}
+.install-steps b { color: var(--text); font-size: 11px; font-weight: 600; }
+.install-steps span { color: var(--muted-2); font-size: 10px; line-height: 1.5; }
+.install-note {
+  margin-bottom: 16px;
+  padding: 8px 10px;
+  border-left: 2px solid rgba(255, 216, 94, .5);
+  background: rgba(255, 216, 94, .06);
+  color: rgba(255, 224, 140, .76);
+  font-size: 9.5px;
+  line-height: 1.55;
+}
+.install-card .primary-btn { width: 100%; }
+
+/* 手机横屏：更大的按键、更多安全区、显示快速开始 */
+@media (any-pointer: coarse) and (orientation: landscape) {
+  body.is-landscape .quick-start {
+    display: inline-flex;
+    border-color: rgba(255, 122, 69, .35);
+    color: var(--accent-2);
+    background: rgba(255, 122, 69, .08);
+  }
+  .touch-controls { --tb: clamp(48px, 7.2vw, 62px); }
+  .touch-cluster { bottom: max(10px, env(safe-area-inset-bottom)); }
+  .touch-actions { right: max(16px, env(safe-area-inset-right)); }
+  .touch-move { left: max(16px, env(safe-area-inset-left)); }
+  .touch-btn { border-width: 1.5px; }
+  .training-bar {
+    top: calc(var(--touch-top) + 6px);
+    width: min(304px, 43vw);
+  }
+  .training-bar .tr-lead { display: none; }
+  .tr-stats { grid-template-columns: 1fr 1fr; }
+  .rotate-note { display: none; }
+}
+
+@media (any-pointer: coarse) and (orientation: landscape) and (max-height: 560px) {
+  .menu-header { padding: 8px 16px 6px; }
+  .brand-mark { width: 34px; height: 34px; }
+  .brand-name { font-size: 22px; }
+  .brand-cn { font-size: 7px; }
+  .arena-menu { padding-top: 0; padding-bottom: 8px; gap: 12px; }
+  .center-column { gap: 8px; }
+  .preview-shell { max-height: 34vh; }
+  .menu-footer { display: none; }
+  .panel-heading { margin-bottom: 8px; }
+  .training-entry { margin-top: 7px; }
+  .te-copy small { display: none; }
+}
+
+@media (any-pointer: coarse) and (orientation: portrait) {
+  .training-bar { top: calc(var(--touch-top) + 6px); width: min(300px, calc(100vw - 20px)); }
 }

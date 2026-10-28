@@ -39,15 +39,15 @@ const CHARACTERS = {
     ],
     skills: [
       {
-        key: 'Q', name: '裂地斩', glyph: '裂', cd: 7.5,
+        key: 'U', name: '裂地斩', glyph: '裂', cd: 7.5,
         color: '#ff8a3d', desc: '挥出贴地剑气，命中造成伤害并强力击退。'
       },
       {
-        key: 'W', name: '铁壁冲锋', glyph: '壁', cd: 10,
+        key: 'I', name: '铁壁冲锋', glyph: '壁', cd: 10,
         color: '#e9b25f', desc: '短暂格挡后向前冲锋，撞击造成高额伤害。'
       },
       {
-        key: 'E', name: '不屈战吼', glyph: '吼', cd: 15,
+        key: 'O', name: '不屈战吼', glyph: '吼', cd: 15,
         color: '#ffd07a', desc: '回复生命，并在 6 秒内提升伤害、降低所受伤害。'
       }
     ],
@@ -84,15 +84,15 @@ const CHARACTERS = {
     ],
     skills: [
       {
-        key: 'Q', name: '星尘散射', glyph: '星', cd: 8,
+        key: 'U', name: '星尘散射', glyph: '星', cd: 8,
         color: '#8d7bff', desc: '向前方扇形射出 5 枚奥术飞弹，近距离可全部命中。'
       },
       {
-        key: 'W', name: '冰霜新星', glyph: '霜', cd: 11,
+        key: 'I', name: '冰霜新星', glyph: '霜', cd: 11,
         color: '#65e0ff', desc: '冻结周围敌人，造成伤害并大幅减速。'
       },
       {
-        key: 'E', name: '相位闪现', glyph: '闪', cd: 9,
+        key: 'O', name: '相位闪现', glyph: '闪', cd: 9,
         color: '#b69bff', desc: '瞬移一段距离，并在原地引发奥术爆炸。'
       }
     ],
@@ -129,15 +129,15 @@ const CHARACTERS = {
     ],
     skills: [
       {
-        key: 'Q', name: '追风三连', glyph: '连', cd: 8,
+        key: 'U', name: '追风三连', glyph: '连', cd: 8,
         color: '#4fe09b', desc: '瞬间射出三支追风箭，覆盖中距离。'
       },
       {
-        key: 'W', name: '荆棘陷阱', glyph: '阱', cd: 12,
+        key: 'I', name: '荆棘陷阱', glyph: '阱', cd: 12,
         color: '#9be26b', desc: '在脚下布置陷阱，触发后造成伤害并定身敌人。'
       },
       {
-        key: 'E', name: '燕返', glyph: '燕', cd: 9,
+        key: 'O', name: '燕返', glyph: '燕', cd: 9,
         color: '#8af5c9', desc: '向后跃开并回身速射，后跃期间短暂无敌。'
       }
     ],
@@ -174,15 +174,15 @@ const CHARACTERS = {
     ],
     skills: [
       {
-        key: 'Q', name: '燃烧瓶', glyph: '燃', cd: 9,
+        key: 'U', name: '燃烧瓶', glyph: '燃', cd: 9,
         color: '#ff8b42', desc: '投掷燃烧瓶，在地面留下持续灼烧的火场。'
       },
       {
-        key: 'W', name: '散弹轰击', glyph: '霰', cd: 10,
+        key: 'I', name: '散弹轰击', glyph: '霰', cd: 10,
         color: '#ffd85e', desc: '近距离扇形弹幕，全部命中可造成恐怖爆发。'
       },
       {
-        key: 'E', name: '战术翻滚', glyph: '滚', cd: 8,
+        key: 'O', name: '战术翻滚', glyph: '滚', cd: 8,
         color: '#71f0e0', desc: '翻滚躲避伤害，并强化 4 秒内的下一次普攻。'
       }
     ],
@@ -267,5 +267,15 @@ const GAME_RULES = {
   duration: 180,
   energyDealt: 0.16,
   energyTaken: 0.26,
-  maxEnergy: 100
+  maxEnergy: 100,
+  guardMax: 100,
+  guardDrain: 9,
+  guardRegen: 22,
+  guardRegenDelay: .42,
+  blockDamage: .24,
+  guardCost: .4,
+  guardBreakTime: .9,
+  dodgeDuration: .26,
+  dodgeCooldown: 1.55,
+  dodgeSpeed: 760
 };

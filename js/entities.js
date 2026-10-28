@@ -37,7 +37,8 @@ const U = {
 function emptyIntent() {
   return {
     left: false, right: false, jumpPressed: false,
-    normalPressed: false, skills: [false, false, false], ult: false
+    normalPressed: false, skills: [false, false, false], ult: false,
+    block: false, dodgePressed: false
   };
 }
 
@@ -73,6 +74,13 @@ class Fighter {
     this.chainWindow = 0;
     this.queuedBasic = 0;
     this.guardTimer = 0;
+    this.guardMeter = GAME_RULES.guardMax;
+    this.blocking = false;
+    this.guardBreak = 0;
+    this.guardRegenDelay = 0;
+    this.dodgeTime = 0;
+    this.dodgeCd = 0;
+    this.dodgeDir = side === 'player' ? 1 : -1;
     this.empowerTimer = 0;
     this.muzzle = 0;
     this.slowMul = 1;
@@ -111,6 +119,13 @@ class Fighter {
     this.chainWindow = 0;
     this.queuedBasic = 0;
     this.guardTimer = 0;
+    this.guardMeter = GAME_RULES.guardMax;
+    this.blocking = false;
+    this.guardBreak = 0;
+    this.guardRegenDelay = 0;
+    this.dodgeTime = 0;
+    this.dodgeCd = 0;
+    this.dodgeDir = facing;
     this.empowerTimer = 0;
     this.stats = { damage: 0, maxCombo: 0, combo: 0, lastHitTime: -10, skillHits: 0, ults: 0 };
     if (this.ai) this.ai.reset(this);
@@ -207,9 +222,81 @@ class Fighter {
     return true;
   }
 
+  tryDodge(intent) {
+    if (this.dodgeCd > 0 || !this.onGround || this.guardBreak > 0 || this.hitstun > 0 || this.isRooted()) {
+      return false;
+    }
+    const inputDir = (intent.right ? 1 : 0) - (intent.left ? 1 : 0);
+    const dir = inputDir || -this.facing;
+    this.blocking = false;
+    this.dodgeTime = GAME_RULES.dodgeDuration;
+    this.dodgeCd = GAME_RULES.dodgeCooldown;
+    this.dodgeDir = dir;
+    this.invuln = Math.max(this.invuln, GAME_RULES.dodgeDuration + .1);
+    this.vx = dir * GAME_RULES.dodgeSpeed;
+    this.vy = 0;
+    GameAudio.dodge();
+    Game.addEffect({
+      type: 'ring', x: this.x, y: this.y - 76, radius: 42,
+      color: '#aef4ff', life: .28, maxLife: .28, lineWidth: 2
+    });
+    Game.burst(this.x, this.y - 68, '#9fe8ff', 7, 150);
+    return true;
+  }
+
+  breakGuard(dir = -this.facing) {
+    if (this.dead || this.guardBreak > 0) return;
+    this.blocking = false;
+    this.guardMeter = 0;
+    this.guardBreak = GAME_RULES.guardBreakTime;
+    this.guardRegenDelay = GAME_RULES.guardBreakTime;
+    this.hitstun = Math.max(this.hitstun, .5);
+    this.action = null;
+    this.vx = dir * 220;
+    GameAudio.guardBreak();
+    Game.shakeBy(6);
+    Game.addEffect({
+      type: 'ring', x: this.x, y: this.y - 78, radius: 76,
+      color: '#ff7b7b', life: .42, maxLife: .42, lineWidth: 4
+    });
+    Game.burst(this.x, this.y - 82, '#ffb0a0', 18, 240);
+    Game.floatText(this.x, this.y - 148, '破防', '#ff9b8f', 22);
+  }
+
   handleIntent(intent, opp, dt) {
-    if (this.dead || this.hitstun > 0 || this.isRooted()) return;
-    if (this.action) return;
+    if (this.dead || this.isRooted()) return;
+    if (this.action) {
+      this.blocking = false;
+      return;
+    }
+    if (this.hitstun > 0) {
+      this.blocking = false;
+      return;
+    }
+    if (this.dodgeTime > 0) return;
+
+    if (intent.dodgePressed && this.tryDodge(intent)) return;
+
+    if (intent.block && this.onGround && this.guardMeter > 0 && this.guardBreak <= 0) {
+      if (!this.blocking) {
+        this.blocking = true;
+        this.guardRegenDelay = 0;
+        GameAudio.guard();
+        Game.addEffect({
+          type: 'ring', x: this.x, y: this.y - 78, radius: 52,
+          color: '#9fe8ff', life: .26, maxLife: .26, lineWidth: 2
+        });
+        Game.burst(this.x, this.y - 78, '#9fe8ff', 6, 120);
+      }
+      this.facing = opp.x >= this.x ? 1 : -1;
+      this.vx *= Math.exp(-22 * dt);
+      return;
+    }
+
+    if (this.blocking) {
+      this.blocking = false;
+      this.guardRegenDelay = Math.max(this.guardRegenDelay, .3);
+    }
 
     if (intent.ult && this.energy >= 100) {
       this.castUlt(opp);
@@ -245,11 +332,22 @@ class Fighter {
     this.hurtTimer = Math.max(0, this.hurtTimer - dt);
     this.invuln = Math.max(0, this.invuln - dt);
     this.guardTimer = Math.max(0, this.guardTimer - dt);
+    this.guardBreak = Math.max(0, this.guardBreak - dt);
+    this.guardRegenDelay = Math.max(0, this.guardRegenDelay - dt);
+    this.dodgeCd = Math.max(0, this.dodgeCd - dt);
     this.empowerTimer = Math.max(0, this.empowerTimer - dt);
     this.chainWindow = Math.max(0, this.chainWindow - dt);
     this.queuedBasic = Math.max(0, this.queuedBasic - dt);
     for (let i = 0; i < 3; i++) this.cooldowns[i] = Math.max(0, this.cooldowns[i] - dt);
     this.updateStatuses(dt);
+    const wasDodging = this.dodgeTime > 0;
+    if (wasDodging) {
+      this.dodgeTime = Math.max(0, this.dodgeTime - dt);
+      this.vx = this.dodgeDir * GAME_RULES.dodgeSpeed;
+      this.vy = 0;
+      this.blocking = false;
+      this.invuln = Math.max(this.invuln, .05);
+    }
 
     if (this.dead) {
       this.deathTime += dt;
@@ -297,6 +395,16 @@ class Fighter {
     // 地面摩擦
     if (this.onGround && !this.action && Math.abs(this.vx) < 18) this.vx = 0;
     if (Math.abs(this.vx) < 1) this.vx = 0;
+
+    if (this.blocking) {
+      this.guardMeter = Math.max(0, this.guardMeter - GAME_RULES.guardDrain * dt);
+      if (this.guardMeter <= 0) this.breakGuard(-this.facing);
+    } else if (this.guardBreak <= 0 && this.guardRegenDelay <= 0) {
+      this.guardMeter = Math.min(GAME_RULES.guardMax, this.guardMeter + GAME_RULES.guardRegen * dt);
+    }
+
+    // 冲刺结束收住惯性，避免闪避后继续滑出很远。
+    if (wasDodging && this.dodgeTime <= 0) this.vx *= .3;
   }
 
   updateAction(dt, opp) {
@@ -996,6 +1104,8 @@ class AIBrain {
     this.doNormal = false;
     this.doSkills = [false, false, false];
     this.doUlt = false;
+    this.doDodge = false;
+    this.blockTimer = 0;
     this.orbit = Math.random() > .5 ? 1 : -1;
     this.hesitate = 0;
     this.strafeTimer = 0;
@@ -1006,6 +1116,8 @@ class AIBrain {
     this.decision = .6;
     this.moveDir = 0;
     this.doJump = this.doNormal = this.doUlt = false;
+    this.doDodge = false;
+    this.blockTimer = 0;
     this.doSkills = [false, false, false];
     this.hesitate = 0;
     this.reactLock = 0;
@@ -1023,6 +1135,7 @@ class AIBrain {
 
     this.decision -= dt;
     this.defTimer -= dt;
+    this.blockTimer = Math.max(0, this.blockTimer - dt);
     this.reactLock = Math.max(0, this.reactLock - dt);
     this.hesitate = Math.max(0, this.hesitate - dt);
 
@@ -1055,18 +1168,25 @@ class AIBrain {
       this.moveDir = 0;
     }
 
-    // 防御判断
+    // 防御判断：优先用格挡或闪避，其次才是跳跃。
     if (!f.action && this.defTimer <= 0) {
       this.defTimer = U.rand(.09, .17);
       const threat = this.scanThreat(opp);
-      if (threat && Math.random() < cfg.dodge && f.onGround) {
-        this.doJump = true;
-        this.reactLock = cfg.reaction * .8;
-      } else if (threat && Math.random() < cfg.dodge * .8 && !f.onGround && f.jumpsLeft > 0) {
-        this.doJump = true;
-      }
-      if (opp.action && dist < 230 && Math.random() < cfg.dodge * .55 && f.onGround) {
-        this.doJump = true;
+      const meleeThreat = !!opp.action && dist < 260;
+      if ((threat || meleeThreat) && f.guardBreak <= 0) {
+        const roll = Math.random();
+        if (f.onGround && f.guardMeter > 32 && roll < cfg.dodge * .55) {
+          this.blockTimer = Math.max(this.blockTimer, U.rand(.3, .55));
+          this.reactLock = cfg.reaction * .6;
+        } else if (f.onGround && f.dodgeCd <= 0 && roll < cfg.dodge) {
+          this.doDodge = true;
+          this.reactLock = cfg.reaction;
+        } else if (f.onGround && roll < cfg.dodge * .8) {
+          this.doJump = true;
+          this.reactLock = cfg.reaction * .8;
+        } else if (!f.onGround && f.jumpsLeft > 0 && roll < cfg.dodge * .8) {
+          this.doJump = true;
+        }
       }
     }
 
@@ -1087,9 +1207,12 @@ class AIBrain {
     intent.normalPressed = this.doNormal;
     intent.skills = this.doSkills.slice();
     intent.ult = this.doUlt;
+    intent.block = this.blockTimer > 0;
+    intent.dodgePressed = this.doDodge;
     this.doJump = false;
     this.doNormal = false;
     this.doUlt = false;
+    this.doDodge = false;
     this.doSkills = [false, false, false];
     return intent;
   }
