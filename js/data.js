@@ -420,3 +420,32 @@ const GAME_RULES = {
   dodgeCooldown: 1.55,
   dodgeSpeed: 760
 };
+
+// 60 Hz 战斗帧表：起手 / 有效判定 / 收招。数值与动画、取消窗口共用。
+const COMBAT = Object.freeze({
+  fps: 60, attackBuffer: 10 / 60, jumpBuffer: 8 / 60,
+  pushboxWidth: 52, minimumDamageScale: .35, comboScaleStep: .08
+});
+const BASIC_FRAMES = {
+  warrior:   [[6,3,11,20,20,80], [7,3,13,23,28,95], [11,4,21,29,36,360]],
+  mage:      [[8,1,17,17,0,70], [8,1,18,19,0,80], [13,1,24,25,0,230]],
+  archer:    [[7,1,15,16,0,55], [7,1,16,18,0,65], [11,1,22,23,0,190]],
+  gunner:    [[5,1,16,17,0,65], [6,1,16,19,0,75], [10,1,25,24,0,140]],
+  barbarian: [[10,4,16,26,24,100], [11,4,17,30,30,125], [16,5,24,35,44,430]],
+  goblin:    [[7,3,12,21,16,65], [7,3,14,24,22,80], [12,4,20,29,30,230]],
+  assassin:  [[4,2,10,17,18,45], [5,2,11,21,24,60], [8,3,17,26,32,230]]
+};
+for (const key of CHAR_ORDER) {
+  CHARACTERS[key].basic.forEach((move, index) => {
+    const [startup, active, recovery, stun, step, knockback] = BASIC_FRAMES[key][index];
+    Object.assign(move, {
+      startupFrames: startup, activeFrames: active, recoveryFrames: recovery,
+      hitAt: startup / 60, activeEnd: (startup + active) / 60,
+      duration: (startup + active + recovery) / 60,
+      chainAt: (startup + active + 2) / 60,
+      whiffChainAt: (startup + active + 6) / 60,
+      stun: stun / 60, blockstun: Math.max(8, startup + active + 3) / 60,
+      rootMotion: step, kb: knockback
+    });
+  });
+}

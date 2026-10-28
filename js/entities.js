@@ -24,6 +24,20 @@ const U = {
     const dx = cx - nx, dy = cy - ny;
     return dx * dx + dy * dy <= r * r;
   },
+  sweptRect(x0, y0, x1, y1, rect, radius = 0) {
+    let enter = 0, exit = 1;
+    for (const [start, delta, low, high] of [
+      [x0, x1 - x0, rect.x - radius, rect.x + rect.w + radius],
+      [y0, y1 - y0, rect.y - radius, rect.y + rect.h + radius]
+    ]) {
+      if (Math.abs(delta) < 1e-9) { if (start < low || start > high) return null; continue; }
+      const first = (low - start) / delta, last = (high - start) / delta;
+      enter = Math.max(enter, Math.min(first, last));
+      exit = Math.min(exit, Math.max(first, last));
+      if (enter > exit) return null;
+    }
+    return enter;
+  },
   hexA(hex, alpha) {
     if (!hex) return `rgba(255,255,255,${alpha})`;
     if (hex.startsWith('rgb')) return hex.replace(/rgba?\(([^)]+)\)/, (m, p) => `rgba(${p.split(',').slice(0, 3).join(',')},${alpha})`);
@@ -66,18 +80,27 @@ class Fighter {
     this.statuses = [];
     this.action = null;
     this.hitstun = 0;
-    this.blockStun = 0;
     this.invuln = 0;
     this.hitFlash = 0;
     this.hurtTimer = 0;
     this.animTime = Math.random() * 5;
+    this.inputBuffer = {};
+    this.stridePhase = 0;
+    this.landTimer = 0;
+    this.recoil = 0;
+    this.impactDir = -1;
+    this.poseEpoch = 0;
+    this.actionSerial = 0;
+    this.visualClock = 0;
+    this.previousVisualClock = 0;
+    this.previousAnimTime = this.animTime;
+    this.previousActionTime = 0;
+    this.blockstun = 0;
+    this.comboOwner = null;
+    this.comboHitCount = 0;
     this.comboIdx = -1;
     this.chainWindow = 0;
     this.queuedBasic = 0;
-    this.bufferNormal = 0;
-    this.bufferSkill = -1;
-    this.bufferUlt = 0;
-    this.bufferTimer = 0;
     this.guardTimer = 0;
     this.guardMeter = GAME_RULES.guardMax;
     this.blocking = false;
@@ -101,8 +124,24 @@ class Fighter {
   }
 
   reset(x, facing) {
+    this.visualClock = 0;
+    this.previousVisualClock = 0;
+    this.previousAnimTime = this.animTime;
+    this.previousActionTime = 0;
+    this.blockstun = 0;
+    this.comboOwner = null;
+    this.comboHitCount = 0;
+    this.inputBuffer = {};
+    this.stridePhase = 0;
+    this.landTimer = 0;
+    this.recoil = 0;
+    this.poseEpoch++;
     this.x = x;
     this.y = WORLD.ground;
+    this.previousX = x;
+    this.previousY = WORLD.ground;
+    this.visualX = x;
+    this.visualY = WORLD.ground;
     this.vx = 0;
     this.vy = 0;
     this.facing = facing;
@@ -113,7 +152,6 @@ class Fighter {
     this.statuses = [];
     this.action = null;
     this.hitstun = 0;
-    this.blockStun = 0;
     this.invuln = 0;
     this.hitFlash = 0;
     this.hurtTimer = 0;
@@ -124,10 +162,6 @@ class Fighter {
     this.comboIdx = -1;
     this.chainWindow = 0;
     this.queuedBasic = 0;
-    this.bufferNormal = 0;
-    this.bufferSkill = -1;
-    this.bufferUlt = 0;
-    this.bufferTimer = 0;
     this.guardTimer = 0;
     this.guardMeter = GAME_RULES.guardMax;
     this.blocking = false;
@@ -158,8 +192,7 @@ class Fighter {
   }
 
   canAct() {
-    return !this.dead && !this.action && this.hitstun <= 0 &&
-      this.blockStun <= 0 && !this.isRooted();
+    return !this.dead && !this.action && this.hitstun <= 0 && this.blockstun <= 0 && !this.isRooted();
   }
 
   addStatus(type, duration, data = {}) {
@@ -234,7 +267,7 @@ class Fighter {
   }
 
   tryDodge(intent) {
-    if (this.dodgeCd > 0 || !this.onGround || this.guardBreak > 0 || this.hitstun > 0 || this.isRooted()) {
+    if (this.dodgeCd > 0 || !this.onGround || this.guardBreak > 0 || this.hitstun > 0 || this.blockstun > 0 || this.isRooted()) {
       return false;
     }
     const inputDir = (intent.right ? 1 : 0) - (intent.left ? 1 : 0);
@@ -243,7 +276,7 @@ class Fighter {
     this.dodgeTime = GAME_RULES.dodgeDuration;
     this.dodgeCd = GAME_RULES.dodgeCooldown;
     this.dodgeDir = dir;
-    this.invuln = Math.max(this.invuln, GAME_RULES.dodgeDuration + .1);
+    this.invuln = Math.max(this.invuln, GAME_RULES.dodgeDuration * .7);
     this.vx = dir * GAME_RULES.dodgeSpeed;
     this.vy = 0;
     GameAudio.dodge();
@@ -258,6 +291,7 @@ class Fighter {
   breakGuard(dir = -this.facing) {
     if (this.dead || this.guardBreak > 0) return;
     this.blocking = false;
+    this.blockstun = 0;
     this.guardMeter = 0;
     this.guardBreak = GAME_RULES.guardBreakTime;
     this.guardRegenDelay = GAME_RULES.guardBreakTime;
@@ -280,19 +314,16 @@ class Fighter {
       this.blocking = false;
       return;
     }
-    if (this.hitstun > 0) {
+    if (this.hitstun > 0 || this.blockstun > 0) {
       this.blocking = false;
-      return;
-    }
-    if (this.blockStun > 0) {
-      // 独立格挡硬直：可以继续按住防御，但不能立刻出招。
-      this.blocking = !!intent.block && this.onGround && this.guardMeter > 0 && this.guardBreak <= 0;
-      this.vx *= Math.exp(-16 * dt);
       return;
     }
     if (this.dodgeTime > 0) return;
 
-    if (intent.dodgePressed && this.tryDodge(intent)) return;
+    if (intent.dodgePressed && this.tryDodge(intent)) {
+      delete this.inputBuffer.dodgePressed;
+      return;
+    }
 
     if (intent.block && this.onGround && this.guardMeter > 0 && this.guardBreak <= 0) {
       if (!this.blocking) {
@@ -315,38 +346,68 @@ class Fighter {
       this.guardRegenDelay = Math.max(this.guardRegenDelay, .3);
     }
 
-    if ((intent.ult || this.bufferUlt) && this.energy >= 100) {
-      this.bufferUlt = 0;
+    if (intent.ult && this.energy >= 100) {
+      delete this.inputBuffer.ult;
       this.castUlt(opp);
       return;
     }
     for (let i = 0; i < 3; i++) {
-      if ((intent.skills[i] || this.bufferSkill === i) && this.cooldowns[i] <= 0) {
-        this.bufferSkill = -1;
+      if (intent.skills[i] && this.cooldowns[i] <= 0) {
+        delete this.inputBuffer['skill' + i];
         this.castSkill(i, opp);
         return;
       }
     }
-    if (intent.normalPressed || this.bufferNormal > 0) {
-      this.bufferNormal = 0;
+    if (intent.normalPressed) {
       this.startBasic(opp, false);
       return;
     }
-    if (intent.jumpPressed) this.jump();
+    if (intent.jumpPressed && this.jump()) delete this.inputBuffer.jumpPressed;
 
     const dir = (intent.right ? 1 : 0) - (intent.left ? 1 : 0);
     const speed = this.data.speed * this.slowMul * (this.isAI && this.ai ? this.ai.cfg.move : 1);
     if (dir !== 0) {
-      const accel = this.onGround ? 18 : 9;
+      const accel = this.onGround ? 38 : 13;
       this.vx = U.lerp(this.vx, dir * speed, 1 - Math.exp(-accel * dt));
     } else {
-      const fric = this.onGround ? 13 : 2.4;
+      const fric = this.onGround ? 30 : 2.8;
       this.vx *= Math.exp(-fric * dt);
     }
   }
 
+  bufferInput(intent, dt = 0) {
+    for (const key of Object.keys(this.inputBuffer)) {
+      this.inputBuffer[key] -= dt;
+      if (this.inputBuffer[key] <= 0) delete this.inputBuffer[key];
+    }
+    for (const key of ['normalPressed', 'jumpPressed', 'dodgePressed', 'ult']) {
+      if (intent[key]) this.inputBuffer[key] = key === 'jumpPressed' ? COMBAT.jumpBuffer : COMBAT.attackBuffer;
+    }
+    intent.skills.forEach((pressed, i) => { if (pressed) this.inputBuffer['skill' + i] = COMBAT.attackBuffer; });
+  }
+
+  bufferedIntent(intent) {
+    const out = Object.assign({}, intent, { skills: intent.skills.slice() });
+    for (const key of ['normalPressed', 'jumpPressed', 'dodgePressed', 'ult']) {
+      out[key] = !!(intent[key] || this.inputBuffer[key]);
+    }
+    out.skills = out.skills.map((pressed, i) => !!(pressed || this.inputBuffer['skill' + i]));
+    return out;
+  }
+
   update(dt, opp, intent) {
+    this.previousVisualClock = this.visualClock;
+    this.previousAnimTime = this.animTime;
+    this.previousActionTime = this.action ? this.action.time : 0;
+    this.visualClock += dt;
+    this.bufferInput(intent, dt);
+    intent = this.bufferedIntent(intent);
+    this.previousX = this.x;
+    this.previousY = this.y;
     this.animTime += dt;
+    this.stridePhase += Math.abs(this.vx) * dt * .035;
+    this.landTimer = Math.max(0, this.landTimer - dt);
+    this.recoil *= Math.exp(-18 * dt);
     if (this.muzzle > 0) this.muzzle = Math.max(0, this.muzzle - dt * 6);
     this.hitFlash = Math.max(0, this.hitFlash - dt);
     this.hurtTimer = Math.max(0, this.hurtTimer - dt);
@@ -358,12 +419,6 @@ class Fighter {
     this.empowerTimer = Math.max(0, this.empowerTimer - dt);
     this.chainWindow = Math.max(0, this.chainWindow - dt);
     this.queuedBasic = Math.max(0, this.queuedBasic - dt);
-    this.bufferTimer = Math.max(0, this.bufferTimer - dt);
-    if (this.bufferTimer <= 0) {
-      this.bufferNormal = 0;
-      this.bufferSkill = -1;
-      this.bufferUlt = 0;
-    }
     for (let i = 0; i < 3; i++) this.cooldowns[i] = Math.max(0, this.cooldowns[i] - dt);
     this.updateStatuses(dt);
     const wasDodging = this.dodgeTime > 0;
@@ -372,7 +427,6 @@ class Fighter {
       this.vx = this.dodgeDir * GAME_RULES.dodgeSpeed;
       this.vy = 0;
       this.blocking = false;
-      this.invuln = Math.max(this.invuln, .05);
     }
 
     if (this.dead) {
@@ -384,32 +438,42 @@ class Fighter {
     }
 
     if (this.hitstun > 0) this.hitstun = Math.max(0, this.hitstun - dt);
-    if (this.blockStun > 0) this.blockStun = Math.max(0, this.blockStun - dt);
+    if (this.blockstun > 0) this.blockstun = Math.max(0, this.blockstun - dt);
+    if (this.hitstun > 0 || this.blockstun > 0) this.vx *= Math.exp(-10 * dt);
+    if (this.hitstun <= 0 && this.comboHitCount) {
+      if (this.comboOwner) this.comboOwner.stats.combo = 0;
+      this.comboOwner = null;
+      this.comboHitCount = 0;
+    }
 
-    if (!this.action && this.hitstun <= 0 && this.blockStun <= 0 && !this.isRooted()) {
+    if (!this.action && this.hitstun <= 0 && this.blockstun <= 0 && !this.isRooted()) {
       this.facing = opp.x >= this.x ? 1 : -1;
     }
 
-    // 攻击键在动作中提前按下也不会丢：短暂缓冲，命中后可立即衔接。
-    this.bufferIntent(intent);
-
     if (this.action) {
-      if (this.bufferNormal > 0 && this.action.type === 'basic' &&
-        this.comboIdx < 2 && this.action.time > this.action.duration * 0.18) {
-        this.queuedBasic = 0.55;
+      if (intent.normalPressed && this.action.type === 'basic' && this.comboIdx < 2) {
+        this.queuedBasic = this.action.duration - this.action.time + .2;
+        delete this.inputBuffer.normalPressed;
+        intent.normalPressed = false;
       }
-      this.updateAction(dt, opp);
-    } else if (this.hitstun <= 0) {
+      const a = this.action;
+      const confirmed = !!a.contact;
+      const recovery = a.type === 'basic' && a.time >= (confirmed ? a.startup + 1 / 60 : a.duration * .88);
+      const canDodge = intent.dodgePressed && this.dodgeCd <= 0 && this.onGround && this.guardBreak <= 0;
+      const canSpecial = confirmed && (intent.ult && this.energy >= 100 ||
+        intent.skills.some((pressed, i) => pressed && this.cooldowns[i] <= 0));
+      const canJumpCancel = a.contact === 'hit' && intent.jumpPressed && this.jumpsLeft > 0 && this.comboIdx < 2;
+      const skillToUlt = a.type === 'skill' && a.contact === 'hit' && a.eventIndex >= a.events.length &&
+        a.time >= a.lastEventAt + 2 / 60 && intent.ult && this.energy >= 100;
+      if (((recovery && (canDodge || canSpecial || canJumpCancel)) || skillToUlt) && this.hitstun <= 0 && this.blockstun <= 0 && !this.isRooted()) {
+        this.action = null;
+        this.queuedBasic = 0;
+        this.handleIntent(intent, opp, dt);
+      } else {
+        this.updateAction(dt, opp);
+      }
+    } else if (this.hitstun <= 0 && this.blockstun <= 0) {
       this.handleIntent(intent, opp, dt);
-    }
-    if (this.action || this.hitstun <= 0) {
-      // 缓冲成功释放后清空，避免同一输入在下一段动作里重复触发。
-      if (this.bufferSkill >= 0 && this.action && this.action.type === 'skill') {
-        this.bufferSkill = -1;
-      }
-      if (this.bufferUlt && this.action && this.action.type === 'ult') {
-        this.bufferUlt = 0;
-      }
     }
 
     // 物理
@@ -420,13 +484,18 @@ class Fighter {
     if (!this.onGround) {
       this.y += this.vy * dt;
       if (this.y >= WORLD.ground) {
-        const impact = Math.abs(this.vy);
+        const landingSpeed = this.vy;
         this.y = WORLD.ground;
         this.vy = 0;
         this.onGround = true;
         this.jumpsLeft = 2;
-        if (impact > 420) Game.landing(this, impact);
-        else if (Math.abs(this.vx) > 120) Game.dust(this.x, WORLD.ground, '#cfd7db', 5);
+        this.landTimer = .16;
+        if (landingSpeed > 420) {
+          Game.dust(this.x, WORLD.ground, this.data.color2, 6, 100);
+          Game.addEffect({ type: 'ring', x: this.x, y: WORLD.ground + 2, radius: 35,
+            color: this.data.color2, life: .2, maxLife: .2, lineWidth: 1.4 });
+        }
+        if (Math.abs(this.vx) > 120) Game.dust(this.x, WORLD.ground, '#cfd7db', 5);
       }
     } else {
       this.y = WORLD.ground;
@@ -447,12 +516,30 @@ class Fighter {
 
     // 冲刺结束收住惯性，避免闪避后继续滑出很远。
     if (wasDodging && this.dodgeTime <= 0) this.vx *= .3;
+    if (!Game.collectHits) this.updateActiveHitbox(opp);
+  }
+
+  updateActiveHitbox(opp) {
+    const a = this.action;
+    if (!a || a.type !== 'basic' || !a.basicData.range || this.dead ||
+        a.time + 1e-8 < a.startup || a.time >= a.activeEnd) return;
+    const b = a.basicData;
+    this.meleeStrike(b.range, b.height || 150, b.dmg, {
+      kb: b.kb, stun: b.stun, blockstun: b.blockstun, launch: b.launch || 0,
+      heavy: !!b.heavy, type: 'basic', color: this.data.color, activePass: true
+    }, opp);
   }
 
   updateAction(dt, opp) {
     const a = this.action;
     if (!a) return;
     a.time += dt;
+    if (a.opts.rootMotion && this.onGround) {
+      const progress = U.clamp(a.time / (a.startup + 2 / 60), 0, 1);
+      const eased = 1 - (1 - progress) * (1 - progress);
+      this.x += a.facing * a.opts.rootMotion * (eased - a.rootProgress);
+      a.rootProgress = eased;
+    }
     while (a.eventIndex < a.events.length && a.time >= a.events[a.eventIndex].t) {
       const event = a.events[a.eventIndex++];
       try { event.fn(); } catch (e) { console.error(e); }
@@ -463,34 +550,9 @@ class Fighter {
     } else {
       this.vx *= Math.exp(-9 * dt);
     }
-
-    // 命中确认后才能取消普攻后摇：接普攻、接技能或接大招。
-    if (a.type === 'basic' && a.hitConfirmed) {
-      if (this.bufferSkill >= 0 && this.cooldowns[this.bufferSkill] <= 0 &&
-        a.time >= a.duration * .36) {
-        const idx = this.bufferSkill;
-        this.bufferSkill = -1;
-        this.action = null;
-        this.queuedBasic = 0;
-        this.castSkill(idx, opp);
-        return;
-      }
-      if (this.bufferUlt && this.energy >= 100 && a.time >= a.duration * .4) {
-        this.bufferUlt = 0;
-        this.action = null;
-        this.queuedBasic = 0;
-        this.castUlt(opp);
-        return;
-      }
-      if (this.queuedBasic > 0 && this.comboIdx < 2 && a.time >= a.duration * .52) {
-        this.action = null;
-        this.queuedBasic = 0;
-        this.startBasic(opp, true);
-        return;
-      }
-    }
-
-    if (a.time >= a.duration) {
+    const chainReady = a.type === 'basic' && this.queuedBasic > 0 && this.comboIdx < 2 &&
+      a.eventIndex >= a.events.length && a.time >= (a.contact ? a.basicData.chainAt : a.basicData.whiffChainAt);
+    if (a.time >= a.duration || chainReady) {
       const wasBasic = a.type === 'basic';
       const follow = wasBasic && this.queuedBasic > 0 && this.comboIdx < 2;
       if (a.opts.onEnd) a.opts.onEnd();
@@ -500,7 +562,7 @@ class Fighter {
         this.startBasic(opp, true);
       } else if (wasBasic) {
         if (this.comboIdx < 2) {
-          this.chainWindow = 0.62;
+          this.chainWindow = 8 / 60;
         } else {
           this.comboIdx = -1;
           this.chainWindow = 0;
@@ -509,36 +571,26 @@ class Fighter {
     }
   }
 
-  bufferIntent(intent) {
-    if (!intent) return;
-    if (intent.normalPressed) {
-      this.bufferNormal = .2;
-      this.bufferTimer = .2;
-    }
-    for (let i = 0; i < 3; i++) {
-      if (intent.skills[i]) {
-        this.bufferSkill = i;
-        this.bufferTimer = .2;
-      }
-    }
-    if (intent.ult) {
-      this.bufferUlt = 1;
-      this.bufferTimer = .2;
-    }
-  }
-
   beginAction(type, key, duration, events, opts = {}) {
+    const ordered = (events || []).slice().sort((a, b) => a.t - b.t);
     this.action = {
       type, key, time: 0, duration,
-      events: (events || []).slice().sort((a, b) => a.t - b.t),
-      eventIndex: 0, opts, hitConfirmed: false
+      events: ordered, eventIndex: 0, opts, serial: ++this.actionSerial,
+      startedAt: this.visualClock, facing: this.facing, contact: null,
+      lastEventAt: ordered.length ? ordered[ordered.length - 1].t : 0,
+      startup: opts.basicData ? opts.basicData.hitAt : Math.min(duration * .28, .15),
+      activeEnd: opts.basicData ? opts.basicData.activeEnd : duration * .7,
+      recoveryAt: opts.basicData ? opts.basicData.activeEnd : duration * .7,
+      basicData: opts.basicData || null, hitTargets: new Set(), rootProgress: 0
     };
+    this.blocking = false;
     this.queuedBasic = 0;
     if (opts.stop !== false) this.vx *= 0.2;
   }
 
   startBasic(opp, next) {
     if (this.dead) return;
+    delete this.inputBuffer.normalPressed;
     let idx;
     if (next) idx = Math.min(2, this.comboIdx + 1);
     else if (this.chainWindow > 0 && this.comboIdx >= 0 && this.comboIdx < 2) idx = this.comboIdx + 1;
@@ -551,15 +603,17 @@ class Fighter {
     this.beginAction('basic', 'basic' + idx, b.duration, [{
       t: b.hitAt,
       fn: () => this.performBasic(idx, b, opp)
-    }], { drag: 15 });
-    if (this.onGround) this.vx += this.facing * (idx === 2 ? 170 : 80);
-    if ((this.data.key === 'warrior' || this.data.key === 'barbarian') && idx === 2) {
-      Game.shakeBy(this.data.key === 'barbarian' ? 5 : 3);
-    }
+    }], { drag: 22, rootMotion: b.rootMotion, basicData: b });
   }
 
   performBasic(idx, b, opp) {
     const d = this.data;
+    // 弹道从武器前端附近出发；贴脸时收回出生点，避免越过目标导致空枪。
+    const muzzle = {
+      x: this.x + this.facing * Math.min(d.key === 'archer' ? 74 : 120,
+        Math.max(0, Math.abs(opp.x - this.x) - 28)),
+      y: this.y - 100
+    };
     if (d.key === 'warrior') {
       GameAudio.swing(!!b.heavy);
       this.meleeStrike(b.range, b.height || 150, b.dmg, {
@@ -576,14 +630,14 @@ class Fighter {
       GameAudio.magic();
       const big = !!b.heavy;
       this.spawnOrb(big ? 'bigOrb' : 'orb', {
-        x: this.x + this.facing * 38, y: this.y - 96,
+        x: muzzle.x, y: muzzle.y,
         vx: this.facing * b.speed, vy: big ? -18 : 0,
         radius: b.radius, damage: b.dmg, kb: b.kb, stun: b.stun,
         color: big ? d.color2 : d.color, glow: U.hexA(d.color, .65), life: 1.35
       });
       if (big) {
         Game.addEffect({
-          type: 'ring', x: this.x + this.facing * 38, y: this.y - 96, radius: 30,
+          type: 'ring', x: muzzle.x, y: muzzle.y, radius: 30,
           color: d.color2, life: .28, maxLife: .28, lineWidth: 2
         });
       }
@@ -591,7 +645,7 @@ class Fighter {
       GameAudio.bow();
       const big = !!b.heavy;
       this.spawnArrow({
-        x: this.x + this.facing * 40, y: this.y - 98,
+        x: muzzle.x, y: muzzle.y,
         vx: this.facing * b.speed, vy: big ? 0 : -8,
         radius: big ? 11 : 9, damage: b.dmg, kb: b.kb, stun: b.stun,
         kind: big ? 'bigArrow' : 'arrow', color: d.color, glow: U.hexA(d.color, .55), life: 1.4
@@ -663,11 +717,11 @@ class Fighter {
       if (b.pellets) {
         GameAudio.shotgun();
         Game.shakeBy(7);
-        Game.muzzleFlash(this.x + this.facing * 66, this.y - 96, this.facing, d);
+        Game.muzzleFlash(muzzle.x, muzzle.y, this.facing, d);
         for (let i = 0; i < b.pellets; i++) {
           const ang = (i - (b.pellets - 1) / 2) * 0.055;
           this.spawnBullet({
-            x: this.x + this.facing * 62, y: this.y - 96 + Math.sin(ang) * 18,
+            x: muzzle.x, y: muzzle.y + Math.sin(ang) * 18,
             vx: Math.cos(ang) * b.speed * this.facing,
             vy: Math.sin(ang) * b.speed,
             radius: b.radius, damage: b.dmg, kb: b.kb, stun: b.stun,
@@ -678,9 +732,9 @@ class Fighter {
       } else {
         GameAudio.shoot();
         this.muzzle = 1;
-        Game.muzzleFlash(this.x + this.facing * 68, this.y - 96, this.facing, d);
+        Game.muzzleFlash(muzzle.x, muzzle.y, this.facing, d);
         this.spawnBullet({
-          x: this.x + this.facing * 64, y: this.y - 96,
+          x: muzzle.x, y: muzzle.y,
           vx: this.facing * b.speed, vy: 0,
           radius: b.radius, damage: b.dmg, kb: b.kb, stun: b.stun,
           kind: 'bullet', color: d.color2, glow: U.hexA(d.color, .7), life: 1.4,
@@ -713,6 +767,11 @@ class Fighter {
   }
 
   meleeStrike(range, height, damage, opts, opp) {
+    const a = this.action;
+    if (a && a.type === 'basic' && opts.type === 'basic') {
+      if (Game.collectHits && !opts.activePass) return false;
+      if (a.time + 1e-8 < a.startup || a.time >= a.activeEnd || a.hitTargets.has(opp)) return false;
+    }
     const box = {
       x: this.facing > 0 ? this.x + 4 : this.x - range - 4,
       y: this.y - height,
@@ -720,9 +779,11 @@ class Fighter {
       h: height
     };
     if (U.rectOverlap(box, opp.hurtbox)) {
-      return Game.dealDamage(this, opp, damage, Object.assign({
+      const hit = Game.dealDamage(this, opp, damage, Object.assign({
         type: 'basic', color: this.data.color, dir: this.facing
       }, opts));
+      if (hit && a && a.type === 'basic') a.hitTargets.add(opp);
+      return hit;
     }
     return false;
   }

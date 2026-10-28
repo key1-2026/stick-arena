@@ -70,7 +70,7 @@ const GameAudio = (() => {
     filter.Q.value = opts.q || 0.6;
     const vol = (opts.volume === undefined ? 0.18 : opts.volume);
     gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t + 0.008);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t + Math.min(dur * .25, opts.attack === undefined ? .003 : opts.attack));
     gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     osc.connect(filter);
     filter.connect(gain);
@@ -92,7 +92,7 @@ const GameAudio = (() => {
     const gain = ctx.createGain();
     const vol = opts.volume === undefined ? 0.18 : opts.volume;
     gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t + 0.008);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t + Math.min(dur * .25, opts.attack === undefined ? .002 : opts.attack));
     gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     src.connect(filter);
     filter.connect(gain);
@@ -328,8 +328,8 @@ const GameAudio = (() => {
     },
     swing(heavy = false) {
       init();
-      noise(heavy ? 0.22 : 0.13, { freq: heavy ? 700 : 1500, endFreq: 220, volume: heavy ? 0.22 : 0.11, q: 0.7 });
-      tone(heavy ? 140 : 240, 0.1, { type: 'sawtooth', volume: 0.035, endFreq: 80 });
+      noise(heavy ? .14 : .065, { freq: heavy ? 740 : 1900, endFreq: 280, volume: heavy ? .17 : .09, q: .7 });
+      tone(heavy ? 140 : 240, .065, { type: 'sawtooth', volume: .025, endFreq: 90 });
     },
     slash() {
       init();
@@ -360,10 +360,14 @@ const GameAudio = (() => {
       tone(1280, 0.35, { type: 'sine', volume: 0.05, endFreq: 320 });
       noise(0.35, { freq: 4200, endFreq: 900, volume: 0.05, q: 1.8 });
     },
-    hit(heavy = false) {
+    hit(heavy = false, weapon = '') {
       init();
-      noise(heavy ? 0.24 : 0.1, { freq: heavy ? 480 : 900, endFreq: 120, volume: heavy ? 0.29 : 0.15, q: 0.6 });
-      tone(heavy ? 70 : 115, heavy ? 0.22 : 0.1, { type: 'sine', volume: heavy ? 0.16 : 0.08, endFreq: 38 });
+      noise(heavy ? .14 : .055, { freq: heavy ? 540 : 1250, endFreq: 130, volume: heavy ? .26 : .16, q: .6 });
+      tone(heavy ? 76 : 126, heavy ? .16 : .075, { type: 'sine', volume: heavy ? .17 : .085, endFreq: 43 });
+      // 瞬态负责清晰度，低频负责重量；武器类型带出不同触感。
+      const metal = ['warrior', 'assassin', 'goblin'].includes(weapon);
+      tone(metal ? 2040 : 480, .032, { type: 'triangle', volume: heavy ? .055 : .035,
+        endFreq: metal ? 830 : 150, cutoff: 3000, attack: .001 });
     },
     hurt() {
       init();
@@ -388,18 +392,6 @@ const GameAudio = (() => {
       init();
       noise(0.18, { freq: 900, endFreq: 280, volume: 0.12, q: 0.6 });
     },
-    land(heavy = false) {
-      init();
-      noise(heavy ? 0.2 : 0.1, {
-        freq: heavy ? 260 : 420,
-        endFreq: 90,
-        volume: heavy ? 0.14 : 0.07,
-        q: 0.7
-      });
-      tone(heavy ? 72 : 104, heavy ? 0.16 : 0.08, {
-        type: 'sine', volume: heavy ? 0.09 : 0.04, endFreq: 44
-      });
-    },
     guard() {
       init();
       tone(420, 0.08, { type: 'triangle', volume: 0.035, endFreq: 620 });
@@ -407,7 +399,8 @@ const GameAudio = (() => {
     },
     block(heavy = false) {
       init();
-      noise(heavy ? 0.18 : 0.09, {
+      tone(heavy ? 1540 : 2300, .09, { type: 'sine', volume: .045, endFreq: 1140, attack: .001 });
+      noise(heavy ? .11 : .045, {
         freq: heavy ? 700 : 1500,
         endFreq: heavy ? 180 : 620,
         volume: heavy ? 0.18 : 0.1,

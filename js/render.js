@@ -8,6 +8,8 @@ const Render = (() => {
   const GROUND = 724;
   const TAU = Math.PI * 2;
   const mapCache = {};
+  const backgroundCache = new Map();
+  const backgroundStats = { rasterizations: 0, reuses: 0 };
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const lerp = (a, b, t) => a + (b - a) * t;
@@ -741,38 +743,61 @@ const Render = (() => {
     ctx.stroke();
   }
 
-  let sceneBuffer = null;
-  let sceneBufferKey = '';
-  let sceneBufferTime = -1;
-
-  function drawMapCached(ctx, key, t) {
-    if (typeof document === 'undefined' || !document.createElement) {
-      drawMap(ctx, key, t);
-      return;
+  function drawMap(ctx, key, t) {
+    // Scenery is intentionally sampled at 30 Hz; fighter animation stays at the
+    // display refresh rate. Two reusable bitmaps bound memory to about 11 MB.
+    if (typeof document === 'undefined' || !document.createElement) return drawMapScene(ctx, key, t);
+    let entry = backgroundCache.get(key);
+    if (!entry) {
+      const canvas = document.createElement('canvas');
+      canvas.width = W; canvas.height = H;
+      const painter = canvas.getContext('2d');
+      if (!painter) return drawMapScene(ctx, key, t);
+      entry = { canvas, painter, frame: -1 };
+      backgroundCache.set(key, entry);
+    } else {
+      backgroundCache.delete(key);
+      backgroundCache.set(key, entry);
     }
-    if (!sceneBuffer) {
-      sceneBuffer = document.createElement('canvas');
-      sceneBuffer.width = W;
-      sceneBuffer.height = H;
+    const frame = Math.floor(Math.max(0, t || 0) * 30 + 1e-7);
+    if (entry.frame !== frame) {
+      entry.painter.setTransform(1,0,0,1,0,0);
+      drawMapScene(entry.painter, key, frame / 30);
+      entry.frame = frame;
+      backgroundStats.rasterizations++;
+    } else backgroundStats.reuses++;
+    while (backgroundCache.size > 2) {
+      const oldest = backgroundCache.keys().next().value;
+      const stale = backgroundCache.get(oldest);
+      backgroundCache.delete(oldest);
+      stale.canvas.width = stale.canvas.height = 1;
     }
-    const interval = document.body && document.body.classList.contains('touch-device') ? .085 : .05;
-    if (key !== sceneBufferKey || t < sceneBufferTime || t - sceneBufferTime >= interval) {
-      const bctx = sceneBuffer.getContext('2d');
-      bctx.setTransform(1, 0, 0, 1, 0, 0);
-      bctx.clearRect(0, 0, W, H);
-      drawMap(bctx, key, t);
-      sceneBufferKey = key;
-      sceneBufferTime = t;
-    }
-    ctx.drawImage(sceneBuffer, 0, 0, W, H);
+    ctx.drawImage(entry.canvas, 0, 0, W, H);
   }
 
-  function drawMap(ctx, key, t) {
+  function drawMapScene(ctx, key, t) {
     ctx.save();
     if (key === 'bamboo') drawBamboo(ctx, t);
     else if (key === 'ruins') drawRuins(ctx, t);
     else if (key === 'neon') drawNeon(ctx, t);
     else drawLava(ctx, t);
+
+    // 聚光落在交战区，给地面和远景分出层次。
+    const accent = (MAPS[key] || MAPS.lava).accent;
+    ctx.save();
+    const light = ctx.createLinearGradient(0, 180, 0, GROUND + 30);
+    light.addColorStop(0, 'rgba(220,238,255,0)');
+    light.addColorStop(.65, 'rgba(220,238,255,.025)');
+    light.addColorStop(1, 'rgba(220,238,255,.055)');
+    poly(ctx, [[580,180],[900,180],[1380,GROUND],[210,GROUND]], light);
+    const floor = ctx.createRadialGradient(800, GROUND, 30, 800, GROUND, 690);
+    floor.addColorStop(0, U.hexA(accent, .11));
+    floor.addColorStop(.7, U.hexA(accent, .035));
+    floor.addColorStop(1, U.hexA(accent, 0));
+    ctx.translate(800, GROUND + 7); ctx.scale(1, .15); ctx.translate(-800, -GROUND);
+    ctx.fillStyle = floor; ctx.fillRect(80, GROUND-710, 1440, 1420);
+    ctx.restore();
+    line(ctx, 130, GROUND + 1, 1470, GROUND + 1, accent, 1, .16);
 
     // 全场景压暗，突出角色
     const vignette = ctx.createRadialGradient(W / 2, 470, 280, W / 2, 470, 980);
@@ -804,12 +829,220 @@ const Render = (() => {
     return { elbow, hand };
   }
 
-  function makePose(f, t) {
+
+  const poseCache = new WeakMap();
+  const smoothstep = value => { const x = clamp(value, 0, 1); return x * x * (3 - 2 * x); };
+
+  function attackCurve(time, hitAt, activeEnd, duration, rest, windup, contact, follow) {
+    // The contact keyframe is exactly the first active simulation frame.
+    const strikeLength = Math.min(3 / 60, Math.max(1 / 60, hitAt * .55));
+    const strikeStart = Math.max(1 / 120, hitAt - strikeLength);
+    const followEnd = Math.min(duration - 1 / 120, Math.max(hitAt + 1 / 60, activeEnd));
+    if (time < strikeStart) return lerp(rest, windup, smoothstep(time / strikeStart));
+    if (time < hitAt) return lerp(windup, contact, easeInOut((time - strikeStart) / (hitAt - strikeStart)));
+    if (time < followEnd) return lerp(contact, follow, easeOut((time - hitAt) / (followEnd - hitAt)));
+    return lerp(follow, rest, smoothstep((time - followEnd) / Math.max(1 / 120, duration - followEnd)));
+  }
+
+  function basicPose(f, action) {
+    const key = f.key || f.data.key;
+    const parsedIndex = Number(String(action.key || '').replace('basic', ''));
+    const index = Number.isFinite(action.comboIndex) ? action.comboIndex : Number.isFinite(parsedIndex) ? parsedIndex : Math.max(0, f.comboIdx || 0);
+    const b = action.basicData || f.data.basic[index];
+    const hit = action.startup === undefined ? b.hitAt : action.startup;
+    const activeEnd = action.activeEnd === undefined ? (b.activeEnd || hit + 3 / 60) : action.activeEnd;
+    const time = action.time, length = action.duration;
+    const curve = (rest, wind, contact, follow = contact) => attackCurve(time, hit, activeEnd, length, rest, wind, contact, follow);
+    const power = curve(0, -.16, 1, .8);
+    const ranged = ['mage','archer','gunner'].includes(key);
+    // Each strike has its own silhouette: cut, returning cut, committed finisher.
+    const angles = {
+      warrior: [[1.25,-.85,-.03,.72],[.68,1.16,-.16,-.86],[-.72,-2.18,.24,1.02]],
+      barbarian: [[1.25,-1.25,.13,.94],[.9,1.48,-.17,-.9],[-.78,-2.48,.38,1.28]],
+      assassin: [[1.2,-.58,-.04,.5],[.48,1.04,-.22,-.86],[-.7,-1.85,.1,.86]],
+      goblin: [[1.2,.58,-.03,.12],[.15,.7,-.06,.16],[.2,-.75,-.13,.35]]
+    };
+    let angle;
+    if (angles[key]) angle = curve(...angles[key][index]);
+    else if (key === 'mage') angle = curve(1.2,-.4,.28,.38);
+    else angle = curve(.42,.14,.28,.4);
+    const kick = time >= hit ? Math.exp(-(time - hit) * 30) : 0;
+    const recover = smoothstep((time - activeEnd) / Math.max(1 / 60, length - activeEnd));
+    const rootTravel = action.opts && action.opts.rootMotion || 0;
+    return {
+      armFA: angle, armFB: angle + (ranged ? .02 : .08),
+      armBA: key === 'barbarian' ? curve(1.7,-1.05,.58,1.8) : ranged ? curve(1.8,1.1,.6,1.35) : curve(1.8,1.4,2.05,1.7),
+      armBB: key === 'archer' ? curve(1.7,-1.38,-.72,.5) : key === 'barbarian' ? curve(1.7,-.95,.7,1.8) : 1.7,
+      weaponAngle: ranged ? curve(.45,-.08,0,-.12) : key === 'goblin' ? curve(.75,.12,-.03,.08) : angle,
+      bowDraw: time < hit ? smoothstep(time / Math.max(hit,1/60)) : Math.exp(-(time - hit) * 36),
+      lean: ranged ? 2 - kick * (key === 'gunner' ? 8 : 4) : 2 + power * (key === 'barbarian' ? 14 : 9),
+      hipShift: ranged ? -kick * 3 : power * 4,
+      crouch: (key === 'assassin' ? 3 : 0) + Math.max(0,power) * (b.heavy ? 7 : 2.5),
+      footLead: ranged ? 0 : Math.max(0,power) * (b.heavy ? 12 : 7),
+      footAnchor: ranged ? 0 : rootTravel * (action.rootProgress || 0) * (1 - recover),
+      backFootLift: !ranged && time > activeEnd ? Math.sin(recover * Math.PI) * 8 : 0
+    };
+  }
+
+  function sampleFighter(f, worldTime) {
+    const alpha = Number.isFinite(f.animationAlpha) ? clamp(f.animationAlpha, 0, 1) : 1;
+    const realClock = Number.isFinite(f.visualClock) ? f.visualClock : worldTime;
+    const previousClock = Number.isFinite(f.previousVisualClock) ? f.previousVisualClock : realClock;
+    const clock = lerp(previousClock, realClock, alpha);
+    const sample = Object.create(f);
+    if (Number.isFinite(f.previousAnimTime)) sample.animTime = lerp(f.previousAnimTime, f.animTime, alpha);
+    if (f.action) {
+      const before = Number.isFinite(f.previousActionTime) ? Math.min(f.previousActionTime, f.action.time) : f.action.time;
+      sample.action = Object.assign({}, f.action, { time: lerp(before, f.action.time, alpha) });
+    }
+    return { sample, clock };
+  }
+
+  function mixPose(from, to, weight) {
+    if (weight >= 1) return to;
+    const pose = {};
+    for (const key of Object.keys(to)) {
+      const value = to[key], previous = from[key];
+      if (value && typeof value === 'object') pose[key] = { x: lerp(previous.x,value.x,weight), y: lerp(previous.y,value.y,weight) };
+      else if (key === 'weaponAngle' || key === 'roll') {
+        const delta = Math.atan2(Math.sin(value - previous),Math.cos(value - previous));
+        pose[key] = previous + delta * weight;
+      } else pose[key] = lerp(previous,value,weight);
+    }
+    return pose;
+  }
+
+  function makePose(f, worldTime) {
+    const { sample, clock } = sampleFighter(f, worldTime);
+    const action = sample.action;
+    const mode = action ? action.type + ':' + (action.serial === undefined ? action.key : action.serial) :
+      f.dead ? 'dead' : f.hitstun > 0 && !f.blocking ? 'hit' : f.dodgeTime > 0 ? 'dodge' :
+      f.blocking || f.blockstun > 0 ? 'block' : !f.onGround ? 'air' : Math.abs(f.vx || 0) > 25 ? 'walk' : 'idle';
+    let state = poseCache.get(f);
+    if (state && state.clock === clock && state.mode === mode && state.epoch === f.poseEpoch) return state.pose;
+    const target = makeRawPose(sample, clock);
+    const reset = !state || state.epoch !== f.poseEpoch || clock < state.clock || Math.abs(f.x - state.x) > 190;
+    if (reset) {
+      state = { pose:target, from:target, mode, startedAt:clock, duration:0, clock, epoch:f.poseEpoch, x:f.x, trails:[], action:f.action, sample };
+      poseCache.set(f,state);
+    } else if (state.mode !== mode) {
+      // Outgoing action objects stop at the exact cancel frame. Sample that pose,
+      // rather than the last rendered frame (which differs at 30/60/144 Hz).
+      let from = state.pose;
+      if (state.action && action && state.action !== f.action) {
+        const old = Object.assign(Object.create(sample), { action:state.action, recoil:0, hitstun:0 });
+        from = makeRawPose(old, clock);
+      }
+      state.from = from;
+      state.mode = mode;
+      state.startedAt = action ? clock - action.time : clock;
+      state.duration = mode === 'hit' ? 0 : action ? Math.min(.045,(action.startup || .12)*.45) : mode === 'dodge' ? .025 : .07;
+    }
+    const age = Math.max(0,clock - state.startedAt);
+    let weight = state.duration > 0 ? smoothstep(age / state.duration) : 1;
+    if (action && action.startup !== undefined && action.time >= action.startup) weight = 1;
+    const pose = mixPose(state.from,target,weight);
+    const movingFast = !f.dead && (f.dodgeTime > 0 || (action && Math.abs(f.vx) > 220));
+    if (movingFast && clock > state.clock && (!state.trails.length || clock - state.trails[state.trails.length-1].time >= 2/60)) {
+      state.trails.push({ pose:state.pose, x:f.visualX === undefined ? f.x : f.visualX,
+        y:f.visualY === undefined ? f.y : f.visualY, facing:f.facing, time:clock });
+    }
+    state.trails = state.trails.filter(item => clock-item.time < .1).slice(-3);
+    state.pose = pose; state.clock = clock; state.x = f.x; state.action = f.action; state.sample = sample;
+    return pose;
+  }
+
+  const readyPose = { armFA:1.28,armFB:1.78,armBA:1.88,armBB:1.76,weaponAngle:1.32,bowDraw:0,lean:0,crouch:0,hipShift:0,roll:0 };
+  function poseTimeline(time, points) {
+    if (time <= points[0][0]) return points[0][1];
+    for (let i=1;i<points.length;i++) if (time <= points[i][0]) {
+      const before=points[i-1],after=points[i];
+      const k=smoothstep((time-before[0])/Math.max(1/120,after[0]-before[0]));
+      const result={};
+      for (const key of Object.keys(readyPose)) result[key]=lerp(before[1][key],after[1][key],k);
+      return result;
+    }
+    return points[points.length-1][1];
+  }
+
+  function specialPose(f,a) {
+    const key=f.key||f.data.key,type=a.type,time=a.time,duration=a.duration;
+    const pose=values=>Object.assign({},readyPose,values);
+    const channel=values=>pose({armFA:-1.7,armFB:-1.4,armBA:-1.9,armBB:-1.6,weaponAngle:-1.55,lean:-4,...values});
+    const thrust=values=>pose({armFA:.18,armFB:.25,armBA:1.55,armBB:1.35,weaponAngle:0,lean:9,...values});
+    let hit=.24,wind=readyPose,contact=readyPose,follow=readyPose;
+    if(type==='ult') {
+      if(key==='warrior'||key==='barbarian') {
+        hit=key==='warrior'?.72:.74;
+        wind=channel({armFA:-2.05,armFB:-1.9,weaponAngle:-2.05});
+        contact=pose({armFA:.75,armFB:.85,weaponAngle:.8,lean:15,crouch:12,hipShift:5});
+        follow=pose({armFA:1.0,armFB:1.05,weaponAngle:1.02,lean:9,crouch:8});
+        return poseTimeline(time,[[0,readyPose],[.08,wind],[hit-.09,wind],[hit,contact],[hit+.12,follow],[duration,readyPose]]);
+      }
+      if(key==='mage') {
+        const cast=channel({lean:-2});
+        return poseTimeline(time,[[0,readyPose],[.16,cast],[1.46,cast],[duration,readyPose]]);
+      }
+      if(key==='archer') {
+        const sky=pose({armFA:-1.3,armFB:-1.55,armBA:-1.55,armBB:-1.75,weaponAngle:-1.4,bowDraw:1,lean:-3});
+        const aim=thrust({armBA:1.2,armBB:-.8,bowDraw:1,lean:-2});
+        return poseTimeline(time,[[0,readyPose],[.18,sky],[1.35,sky],[1.55,aim],[1.66,thrust({bowDraw:0,lean:-7})],[duration,readyPose]]);
+      }
+      if(key==='gunner') {
+        const aim=thrust({armBA:.25,armBB:.1,lean:-5,crouch:7});
+        const kick=thrust({armBA:.25,armBB:.1,lean:-19,crouch:10,hipShift:-9});
+        return poseTimeline(time,[[0,readyPose],[.18,aim],[1.13,aim],[1.19,kick],[1.45,aim],[duration,readyPose]]);
+      }
+      if(key==='assassin') {
+        const points=[[0,readyPose],[.16,channel({crouch:5})]];
+        for(const tm of [.28,.47,.66,.85,1.04,1.23]) {
+          const reverse=Math.round(tm*100)%2;
+          points.push([tm,thrust({armFA:reverse?-.6:.3,armFB:reverse?-.5:.4,weaponAngle:reverse?-.5:.4,crouch:7,lean:13})]);
+        }
+        points.push([duration,readyPose]);return poseTimeline(time,points);
+      }
+      const cast=thrust({armFA:-.12,armFB:-.06,weaponAngle:0,crouch:6});
+      return poseTimeline(time,[[0,readyPose],[.2,channel({})],[.38,cast],[1.5,cast],[duration,readyPose]]);
+    }
+    const slot=a.key;
+    if(key==='warrior'||key==='barbarian') {
+      if(slot==='Q') {hit=key==='warrior'?.27:.28;wind=channel({armFA:-2.25,armFB:-2.15,weaponAngle:-2.2});contact=thrust({armFA:.62,armFB:.7,weaponAngle:.7,crouch:8,lean:13});}
+      else if(slot==='W') {hit=.33;wind=pose({armFA:-2.3,armFB:-2.4,armBA:-1.6,armBB:-1.8,weaponAngle:-2.35,crouch:6,lean:3});contact=Object.assign({},wind,{lean:18,hipShift:3,crouch:9});}
+      else {hit=.2;wind=channel({armFA:-1.95,armFB:-1.35,weaponAngle:-1.8});contact=channel({armFA:-1.7,armFB:-1.2,weaponAngle:-1.6,lean:-6,crouch:3});}
+    } else if(key==='mage') {
+      hit=slot==='Q'?.24:slot==='W'?.26:.06;
+      wind=channel({armFA:-.7,armFB:-.8,weaponAngle:-.6});
+      contact=slot==='W'?pose({armFA:.4,armFB:.25,armBA:.5,armBB:.3,weaponAngle:.25,crouch:10,lean:-4}):thrust({armBA:-.55,armBB:-.75,lean:slot==='E'?9:3});
+    } else if(key==='archer') {
+      hit=slot==='Q'?.16:slot==='W'?.18:.31;
+      wind=slot==='W'?pose({armFA:1.0,armFB:1.5,armBA:1.2,armBB:1.5,weaponAngle:1.4,crouch:8}):thrust({armBA:1.2,armBB:-1.3,bowDraw:1,lean:-3});
+      contact=slot==='W'?Object.assign({},wind,{crouch:17,lean:10}):thrust({armBA:1.25,armBB:-.7,bowDraw:0,lean:slot==='E'?-15:1});
+    } else if(key==='gunner') {
+      hit=slot==='Q'?.28:slot==='W'?.22:.05;
+      wind=slot==='Q'?channel({armFA:-2.2,armFB:-1.5,weaponAngle:-2.2}):thrust({armBA:.4,armBB:.3,lean:-5});
+      contact=slot==='Q'?thrust({lean:9}):thrust({armBA:.4,armBB:.3,lean:-15,hipShift:-5});
+      if(slot==='E') return pose({armFA:1.4,armFB:1.9,armBA:1.2,armBB:1.8,weaponAngle:1.6,crouch:22*smoothstep(time/.06)*(1-smoothstep((time-duration+.1)/.1)),lean:8,roll:TAU*easeInOut(time/duration)});
+    } else if(key==='goblin') {
+      hit=slot==='Q'?.24:slot==='W'?.4:.2;
+      wind=slot==='E'?pose({armFA:1.05,armFB:1.5,weaponAngle:1.35,crouch:9}):pose({armFA:-.65,armFB:-.6,weaponAngle:-.6,lean:-7});
+      contact=slot==='E'?Object.assign({},wind,{crouch:17,lean:9}):thrust({crouch:6,lean:14});
+    } else {
+      hit=slot==='Q'?.22:.18;
+      wind=slot==='E'?pose({armFA:1.2,armFB:1.6,weaponAngle:1.4,crouch:9}):pose({armFA:-.9,armFB:-.8,weaponAngle:-.85,crouch:4});
+      contact=slot==='E'?Object.assign({},wind,{crouch:16,lean:10}):thrust({armFA:-.08,armFB:0,weaponAngle:-.05,crouch:6,lean:12});
+    }
+    follow=Object.assign({},contact,{lean:contact.lean*.65,crouch:contact.crouch*.7});
+    const preparation=Math.max(1/120,hit-Math.min(.07,hit*.45));
+    return poseTimeline(time,[[0,readyPose],[preparation,wind],[hit,contact],[Math.min(duration-.04,hit+.08),follow],[duration,readyPose]]);
+  }
+
+  function makeRawPose(f, t) {
     const d = f.data;
     const action = f.action;
-    const moving = Math.abs(f.vx || 0) > 25 && f.onGround;
-    const hit = f.hitstun > 0 || (f.hurtTimer || 0) > 0;
-    const bob = Math.sin((f.animTime || t) * 2.3) * 1.6;
+    const moving = !action && Math.abs(f.vx || 0) > 25 && f.onGround;
+    const hit = !action && !f.blocking && (f.hitstun > 0 || (f.recoil || 0) > .16);
+    const animationTime = Number.isFinite(f.animTime) ? f.animTime : t;
+    const bob = Math.sin(animationTime * 2.3) * 1.6;
 
     let hip = { x: 0, y: -64 + bob * 0.2 };
     let neck = { x: 0.5, y: -124 + bob };
@@ -824,9 +1057,10 @@ const Render = (() => {
     let weaponAngle = 1.32;
     let bowDraw = 0;
     let armLen = 27;
+    let roll = 0;
 
     if (moving) {
-      const phase = (f.animTime || t) * 11;
+      const phase = f.stridePhase === undefined ? animationTime * 11 : f.stridePhase;
       const s = Math.sin(phase);
       const c = Math.cos(phase);
       const step = s * 21;
@@ -834,7 +1068,7 @@ const Render = (() => {
       footB = { x: -10 - step, y: -Math.max(0, -s) * 17 };
       hip.y = -63 + Math.abs(c) * 2.5;
       neck.y = -123 + Math.abs(c) * 2.5;
-      lean = 6.5;
+      lean = 7 * Math.sign((f.vx || 0) * (f.facing || 1));
       armFA = 1.35 - s * 0.75;
       armFB = 1.48 - s * 0.58;
       armBA = 1.65 + s * 0.75;
@@ -843,22 +1077,22 @@ const Render = (() => {
     }
 
     if (!f.onGround) {
-      const rising = (f.vy || 0) < 0;
-      hip.y = -68 + (rising ? 2 : -2);
-      neck.y = -126 + (rising ? 2 : -2);
-      footF = { x: 14, y: -26 };
-      footB = { x: -12, y: -17 };
-      lean = rising ? 6 : -4;
-      armFA = rising ? -0.6 : 0.55;
-      armFB = rising ? -0.85 : 0.72;
+      const descent = smoothstep(((f.vy || 0) + 160) / 520);
+      hip.y = lerp(-66,-70,descent);
+      neck.y = lerp(-124,-128,descent);
+      footF = { x: lerp(14,20,descent), y: lerp(-26,-9,descent) };
+      footB = { x: lerp(-12,-18,descent), y: lerp(-17,-5,descent) };
+      lean = lerp(6,-4,descent);
+      armFA = lerp(-.6,.55,descent);
+      armFB = lerp(-.85,.72,descent);
       armBA = -0.4;
       armBB = -0.65;
-      weaponAngle = rising ? -0.35 : 0.8;
+      weaponAngle = lerp(-.35,.8,descent);
     }
 
     if (hit) {
-      lean = -14;
-      neck.x = -7;
+      lean = (f.impactDir || -1) * (9 + (f.recoil || 0) * 12);
+      neck.x = (f.impactDir || -1) * (4 + (f.recoil || 0) * 5);
       hip.x = -2;
       footF = { x: -7, y: 0 };
       footB = { x: -27, y: 0 };
@@ -871,276 +1105,35 @@ const Render = (() => {
 
     let actionPose = null;
     if (action) {
-      const p = clamp(action.time / action.duration, 0, 1);
-      const strike = easeOut(clamp((p - 0.18) / 0.32, 0, 1));
-      const recover = clamp((p - 0.62) / 0.38, 0, 1);
-      const wind = easeInOut(clamp(p / 0.3, 0, 1));
-      const wob = clamp(p / 0.55, 0, 1);
-
       if (action.type === 'basic') {
-        if (d.key === 'warrior') {
-          const a = p < 0.34 ? lerp(1.25, -2.25, wind) : lerp(-2.25, 0.46, strike);
-          const ra = a + 0.12;
-          actionPose = {
-            armFA: a, armFB: ra, armBA: 1.7, armBB: 1.75,
-            weaponAngle: ra, lean: 4 + strike * 7,
-            hipShift: strike * 4
-          };
-        } else if (d.key === 'mage') {
-          const a = p < 0.3 ? lerp(1.2, -0.55, wind) : lerp(-0.55, -0.08, strike);
-          actionPose = {
-            armFA: a, armFB: a - 0.04, armBA: 1.8, armBB: 1.6,
-            weaponAngle: a - 0.2, lean: 2 + strike * 3,
-            hipShift: -strike * 3
-          };
-        } else if (d.key === 'archer') {
-          actionPose = {
-            armFA: -0.04, armFB: -0.02, armBA: 1.35, armBB: -0.8,
-            weaponAngle: 0, bowDraw: p < 0.2 ? p / 0.2 : Math.max(0, 1 - (p - 0.2) / 0.25),
-            lean: -2 + strike * 3, hipShift: -strike * 2
-          };
-        } else if (d.key === 'barbarian') {
-          const a = p < 0.4 ? lerp(1.2, -2.55, wind) : lerp(-2.55, 0.55, strike);
-          actionPose = {
-            armFA: a, armFB: a + 0.12, armBA: p < 0.4 ? -1.35 : 1.7,
-            armBB: p < 0.4 ? -1.2 : 1.8, weaponAngle: a + 0.04,
-            lean: 3 + strike * 10, hipShift: strike * 6, crouch: strike * 4
-          };
-        } else if (d.key === 'goblin') {
-          const a = p < 0.28 ? lerp(1.2, -0.22, wind) : lerp(-0.22, 0.05, strike);
-          actionPose = {
-            armFA: a, armFB: a + 0.02, armBA: 1.78, armBB: 1.62,
-            weaponAngle: a, lean: 4 + strike * 7, hipShift: strike * 5
-          };
-        } else if (d.key === 'assassin') {
-          const a = p < 0.22 ? lerp(1.25, -1.95, wind) : lerp(-1.95, 0.82, strike);
-          actionPose = {
-            armFA: a, armFB: a + 0.16, armBA: 1.55, armBB: 1.8,
-            weaponAngle: a + 0.05, lean: 2 + strike * 6, hipShift: strike * 3,
-            crouch: strike * 2
-          };
-        } else if (d.key === 'gunner') {
-          const recoil = p > 0.22 && p < 0.52 ? Math.sin((p - 0.22) / 0.3 * Math.PI) : 0;
-          actionPose = {
-            armFA: -0.02 + recoil * 0.33, armFB: 0.04 + recoil * 0.33,
-            armBA: 1.5, armBB: 1.2, weaponAngle: recoil * 0.25,
-            lean: -4 - recoil * 6, hipShift: -recoil * 4
-          };
-        }
-      } else if (action.type === 'skill') {
-        const key = action.key;
-        if (d.key === 'warrior') {
-          if (key === 'Q') {
-            actionPose = {
-              armFA: p < 0.35 ? lerp(1.1, -2.35, wind) : lerp(-2.35, 0.65, strike),
-              armFB: p < 0.35 ? lerp(1.15, -2.3, wind) : lerp(-2.3, 0.7, strike),
-              armBA: 1.6, armBB: 1.7, weaponAngle: p < 0.35 ? -2.3 : lerp(-2.3, 0.8, strike),
-              lean: 3 + strike * 8, hipShift: strike * 5
-            };
-          } else if (key === 'W') {
-            actionPose = {
-              armFA: -2.55, armFB: -2.6, armBA: -2.35, armBB: -2.2,
-              weaponAngle: -2.5, lean: 17, hipShift: 2, crouch: 4
-            };
-          } else {
-            actionPose = {
-              armFA: -1.9 - Math.sin(p * 20) * 0.1, armFB: -1.35,
-              armBA: -1.5 - Math.cos(p * 20) * 0.1, armBB: -1.1,
-              weaponAngle: -1.8, lean: -2, hipShift: 0
-            };
-          }
-        } else if (d.key === 'mage') {
-          if (key === 'Q') {
-            actionPose = {
-              armFA: -0.15, armFB: -0.1, armBA: -0.55, armBB: -0.75,
-              weaponAngle: -0.15, lean: 2, hipShift: -2
-            };
-          } else if (key === 'W') {
-            actionPose = {
-              armFA: 0.25, armFB: 0.1, armBA: 0.35, armBB: 0.2,
-              weaponAngle: 0.25, lean: -3, crouch: 5, hipShift: 0
-            };
-          } else {
-            actionPose = {
-              armFA: -0.6, armFB: -1.2, armBA: -0.3, armBB: -1.0,
-              weaponAngle: -0.6, lean: 7, hipShift: -4, crouch: 3
-            };
-          }
-        } else if (d.key === 'archer') {
-          if (key === 'Q') {
-            actionPose = {
-              armFA: -0.03, armFB: 0, armBA: 1.28, armBB: -0.75,
-              weaponAngle: 0, bowDraw: p < 0.1 ? 1 : Math.max(0, 1 - p * 2),
-              lean: 0
-            };
-          } else if (key === 'W') {
-            actionPose = {
-              armFA: 1.3, armFB: 1.7, armBA: 1.0, armBB: 1.5,
-              weaponAngle: 1.5, bowDraw: 0, lean: 9, crouch: 13, hipShift: 0
-            };
-          } else {
-            actionPose = {
-              armFA: -0.15, armFB: -0.1, armBA: 1.1, armBB: -0.85,
-              weaponAngle: -0.08, bowDraw: 0, lean: -14, hipShift: 0
-            };
-          }
-        } else if (d.key === 'barbarian') {
-          if (key === 'Q') {
-            const a = p < 0.32 ? lerp(1.2, -2.6, wind) : lerp(-2.6, 0.7, strike);
-            actionPose = {
-              armFA: a, armFB: a + 0.1, armBA: p < 0.32 ? -1.4 : 1.75,
-              armBB: p < 0.32 ? -1.2 : 1.85, weaponAngle: a + 0.05,
-              lean: 3 + strike * 11, hipShift: strike * 6, crouch: strike * 5
-            };
-          } else if (key === 'W') {
-            actionPose = {
-              armFA: -2.45, armFB: -2.5, armBA: -2.2, armBB: -2.05,
-              weaponAngle: -2.35, lean: 18, hipShift: 3, crouch: 5
-            };
-          } else {
-            actionPose = {
-              armFA: -1.95 - Math.sin(p * 20) * 0.1, armFB: -1.35,
-              armBA: -1.5 - Math.cos(p * 20) * 0.1, armBB: -1.1,
-              weaponAngle: -1.8, lean: -2, hipShift: 0
-            };
-          }
-        } else if (d.key === 'goblin') {
-          if (key === 'Q') {
-            const a = p < 0.32 ? lerp(1.15, -1.15, wind) : lerp(-1.15, 0.1, strike);
-            actionPose = {
-              armFA: a, armFB: a + 0.04, armBA: 1.7, armBB: 1.55,
-              weaponAngle: a, lean: -3 + strike * 8, hipShift: strike * 3
-            };
-          } else if (key === 'W') {
-            const back = p < 0.28;
-            actionPose = {
-              armFA: back ? 1.1 : -0.05, armFB: back ? 1.2 : 0.02,
-              armBA: back ? 1.55 : 1.75, armBB: back ? 1.4 : 1.55,
-              weaponAngle: back ? 1.2 : 0.02, lean: back ? -9 : 12,
-              crouch: back ? 4 : 9, hipShift: back ? -3 : 6
-            };
-          } else {
-            actionPose = {
-              armFA: 1.05, armFB: 1.5, armBA: 1.2, armBB: 1.45,
-              weaponAngle: 1.35, lean: 8, crouch: 12, hipShift: 0
-            };
-          }
-        } else if (d.key === 'assassin') {
-          if (key === 'Q') {
-            actionPose = {
-              armFA: -2.4, armFB: -2.1, armBA: 1.5, armBB: 1.7,
-              weaponAngle: -2.2, lean: 8, crouch: 7, hipShift: 0
-            };
-          } else if (key === 'W') {
-            actionPose = {
-              armFA: -0.1, armFB: -0.03, armBA: 1.3, armBB: -0.7,
-              weaponAngle: -0.05, lean: -3, hipShift: -2
-            };
-          } else {
-            actionPose = {
-              armFA: 1.25, armFB: 1.7, armBA: 1.05, armBB: 1.45,
-              weaponAngle: 1.45, lean: 12, crouch: 8, hipShift: 0
-            };
-          }
-        } else if (d.key === 'gunner') {
-          if (key === 'Q') {
-            actionPose = {
-              armFA: -2.5, armFB: -1.4, armBA: -2.1, armBB: -1.7,
-              weaponAngle: -2.4, lean: p < 0.35 ? -8 : 8, hipShift: 0
-            };
-          } else if (key === 'W') {
-            const recoil = p > 0.2 && p < 0.62 ? Math.sin((p - 0.2) / 0.42 * Math.PI) : 0;
-            actionPose = {
-              armFA: -0.02, armFB: 0.04, armBA: 0.45, armBB: 0.3,
-              weaponAngle: recoil * 0.38, lean: -8 - recoil * 9, hipShift: -recoil * 6
-            };
-          } else {
-            actionPose = {
-              armFA: 1.3, armFB: 1.9, armBA: 1.2, armBB: 1.8,
-              weaponAngle: 1.7, lean: 20, crouch: 18, hipShift: 0, roll: p * 9
-            };
-          }
-        }
-      } else if (action.type === 'ult') {
-        if (d.key === 'warrior') {
-          const up = p < 0.4;
-          actionPose = {
-            armFA: up ? -1.9 : 0.75, armFB: up ? -1.75 : 0.9,
-            armBA: up ? -1.4 : 1.55, armBB: up ? -1.2 : 1.8,
-            weaponAngle: up ? -1.9 : 0.9, lean: up ? -4 : 12,
-            hipShift: up ? 0 : 4, crouch: up ? 0 : 7
-          };
-        } else if (d.key === 'mage') {
-          const up = p < 0.65;
-          actionPose = {
-            armFA: up ? -1.7 : -0.2, armFB: up ? -1.4 : -0.1,
-            armBA: up ? -1.9 : -0.4, armBB: up ? -1.6 : -0.3,
-            weaponAngle: up ? -1.55 : -0.2, lean: up ? -4 : 2,
-            hipShift: 0
-          };
-        } else if (d.key === 'archer') {
-          actionPose = {
-            armFA: p < 0.75 ? -1.3 : -0.05, armFB: p < 0.75 ? -1.55 : 0,
-            armBA: p < 0.75 ? -1.55 : 1.3, armBB: p < 0.75 ? -1.75 : -0.8,
-            weaponAngle: p < 0.75 ? -1.4 : -0.05,
-            bowDraw: p < 0.75 ? 0.7 + 0.3 * Math.sin(p * 9) : 0.9,
-            lean: -2
-          };
-        } else if (d.key === 'barbarian') {
-          const up = p < 0.42;
-          actionPose = {
-            armFA: up ? -2.2 : 0.78, armFB: up ? -2.05 : 0.92,
-            armBA: up ? -1.45 : 1.6, armBB: up ? -1.25 : 1.82,
-            weaponAngle: up ? -2.2 : 0.78, lean: up ? -6 : 15,
-            hipShift: up ? 0 : 5, crouch: up ? 0 : 9
-          };
-        } else if (d.key === 'goblin') {
-          const up = p < 0.5;
-          actionPose = {
-            armFA: up ? -1.85 : -0.05, armFB: up ? -1.6 : 0.02,
-            armBA: up ? -1.6 : 1.72, armBB: up ? -1.35 : 1.58,
-            weaponAngle: up ? -1.7 : 0.02, lean: up ? -4 : 10,
-            crouch: up ? 2 : 6, hipShift: 0
-          };
-        } else if (d.key === 'assassin') {
-          const slash = Math.sin(clamp(p, 0, 1) * Math.PI * 3);
-          actionPose = {
-            armFA: -1.9 + slash * 1.3, armFB: -1.7 + slash * 1.4,
-            armBA: 1.2 + slash * .3, armBB: 1.5 + slash * .25,
-            weaponAngle: -1.3 + slash * 1.4, lean: 6 + Math.abs(slash) * 7,
-            hipShift: slash * 3, crouch: 3
-          };
-        } else if (d.key === 'gunner') {
-          const charge = clamp(p / 0.55, 0, 1);
-          const kick = p > 0.56 && p < 0.8 ? Math.sin((p - 0.56) / 0.24 * Math.PI) : 0;
-          actionPose = {
-            armFA: -0.04, armFB: 0.02, armBA: -0.1, armBB: 0.02,
-            weaponAngle: 0, lean: -6 - kick * 12, hipShift: -kick * 10,
-            crouch: charge * 9
-          };
-        }
+        actionPose = basicPose(f, action);
+      } else if (action.type === 'skill' || action.type === 'ult') {
+        actionPose = specialPose(f, action);
       }
 
       if (actionPose) {
-        if (actionPose.armFA !== undefined) armFA = actionPose.armFA;
-        if (actionPose.armFB !== undefined) armFB = actionPose.armFB;
-        if (actionPose.armBA !== undefined) armBA = actionPose.armBA;
-        if (actionPose.armBB !== undefined) armBB = actionPose.armBB;
-        if (actionPose.weaponAngle !== undefined) weaponAngle = actionPose.weaponAngle;
-        if (actionPose.bowDraw !== undefined) bowDraw = actionPose.bowDraw;
-        if (actionPose.lean !== undefined) lean = actionPose.lean;
-        if (actionPose.hipShift !== undefined) hip.x += actionPose.hipShift;
-        if (actionPose.crouch !== undefined) crouch = actionPose.crouch;
-      }
-
-      if (action.type === 'skill' && d.key === 'gunner' && action.key === 'E') {
-        // 翻滚：低位团身
-        const roll = clamp(p / 0.72, 0, 1);
-        crouch = 20;
-        kneeSpecial = roll;
+        const weight = action.type === 'basic' ? 1 :
+          1 - smoothstep((action.time - action.duration + .08) / .08);
+        if (actionPose.armFA !== undefined) armFA = lerp(armFA, actionPose.armFA, weight);
+        if (actionPose.armFB !== undefined) armFB = lerp(armFB, actionPose.armFB, weight);
+        if (actionPose.armBA !== undefined) armBA = lerp(armBA, actionPose.armBA, weight);
+        if (actionPose.armBB !== undefined) armBB = lerp(armBB, actionPose.armBB, weight);
+        if (actionPose.weaponAngle !== undefined) weaponAngle = lerp(weaponAngle, actionPose.weaponAngle, weight);
+        if (actionPose.bowDraw !== undefined) bowDraw = lerp(bowDraw, actionPose.bowDraw, weight);
+        if (actionPose.lean !== undefined) lean = lerp(lean, actionPose.lean, weight);
+        if (actionPose.hipShift !== undefined) hip.x += actionPose.hipShift * weight;
+        if (actionPose.crouch !== undefined) crouch = lerp(crouch, actionPose.crouch, weight);
+        if (actionPose.footLead !== undefined) footF.x += actionPose.footLead;
+        if (actionPose.footAnchor !== undefined) footB.x -= actionPose.footAnchor;
+        if (actionPose.backFootLift !== undefined) footB.y -= actionPose.backFootLift;
+        if (actionPose.roll !== undefined) roll = actionPose.roll;
       }
     }
 
+    // 防御、闪避和落地各有独立重心，避免一直保持站立姿势滑行。
+    if (!action && (f.blocking || f.blockstun > 0)) { armFA = -.65; armFB = -1.6; armBA = -.95; armBB = -1.8; weaponAngle = -1.05; crouch += 10; lean = -4; }
+    if (f.dodgeTime > 0) { crouch += 24; lean = 19 * ((f.dodgeDir || 1) * (f.facing || 1)); armFA = 2.3; armFB = 2.6; weaponAngle = 2.15; }
+    crouch += Math.sin(clamp((f.landTimer || 0) / .16, 0, 1) * Math.PI) * 10;
     hip.y += crouch * 0.4;
     neck.y += crouch * 0.6;
     lean += crouch * 0.14;
@@ -1166,12 +1159,10 @@ const Render = (() => {
       elbowF: frontArm.elbow, handF: frontArm.hand,
       elbowB: backArm.elbow, handB: backArm.hand,
       kneeF, footF, kneeB, footB,
-      weaponAngle, bowDraw, lean, crouch,
-      headR: 15
+      weaponAngle, bowDraw, lean, crouch, roll,
+      headR: 16
     };
   }
-
-  let kneeSpecial = 0;
 
   function strokeLimb(ctx, a, b, c, outer, inner, width) {
     const path = () => {
@@ -1190,6 +1181,8 @@ const Render = (() => {
     ctx.strokeStyle = inner;
     ctx.lineWidth = width;
     ctx.stroke();
+    ctx.save(); ctx.globalAlpha *= .25;
+    path(); ctx.strokeStyle = '#e8f6ff'; ctx.lineWidth = 1.1; ctx.stroke(); ctx.restore();
   }
 
   function drawHead(ctx, f, pose, color, outline) {
@@ -1884,11 +1877,26 @@ const Render = (() => {
     const d = f.data;
     if (!d) return;
     const pose = makePose(f, t || 0);
+    const state = poseCache.get(f);
+    t = state ? state.clock : t;
+    if (!options.noTrail && state) for (const sample of state.trails) {
+      const fade = clamp(1 - (t - sample.time) / .12, 0, 1);
+      ctx.save(); ctx.translate(sample.x, sample.y); ctx.scale(sample.facing >= 0 ? 1 : -1, 1);
+      ctx.globalAlpha = fade * .16;
+      const p = sample.pose;
+      if (p.roll) { ctx.translate(0,-55); ctx.rotate(p.roll); ctx.translate(0,55); }
+      line(ctx, p.hip.x, p.hip.y, p.neck.x, p.neck.y, d.color, 7);
+      strokeLimb(ctx, p.hip, p.kneeF, p.footF, d.color, d.color, 4);
+      strokeLimb(ctx, p.shoulderF, p.elbowF, p.handF, d.color, d.color, 3);
+      ctx.strokeStyle = d.color2; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.head.x, p.head.y, p.headR, 0, TAU); ctx.stroke();
+      ctx.restore();
+    }
     const outline = '#061018';
 
     ctx.save();
-    ctx.translate(f.x, f.y);
+    ctx.translate(f.visualX === undefined ? f.x : f.visualX, f.visualY === undefined ? f.y : f.visualY);
     ctx.scale(f.facing >= 0 ? 1 : -1, 1);
+    if (pose.roll) { ctx.translate(0,-55); ctx.rotate(pose.roll); ctx.translate(0,55); }
     if (f.dead) {
       const k = clamp((f.deathTime || 0) / .52, 0, 1);
       const ease = k * k * (3 - 2 * k);
@@ -1983,7 +1991,7 @@ const Render = (() => {
     torso.addColorStop(0.5, d.color);
     torso.addColorStop(1, d.color2);
     ctx.strokeStyle = torso;
-    ctx.lineWidth = 5;
+    ctx.lineWidth = 7;
     ctx.beginPath();
     ctx.moveTo(pose.hip.x, pose.hip.y);
     ctx.lineTo(pose.neck.x, pose.neck.y);
@@ -2000,7 +2008,7 @@ const Render = (() => {
     ctx.fill();
 
     // 前腿
-    strokeLimb(ctx, pose.hip, pose.kneeF, pose.footF, outline, d.color, 5.5);
+    strokeLimb(ctx, pose.hip, pose.kneeF, pose.footF, outline, d.color, 7);
 
     // 披风/配件（躯干后）
     drawAccessories(ctx, f, pose, t);
@@ -2009,7 +2017,7 @@ const Render = (() => {
     drawHead(ctx, f, pose, d.color, outline);
 
     // 前臂
-    strokeLimb(ctx, pose.shoulderF, pose.elbowF, pose.handF, outline, d.color, 5);
+    strokeLimb(ctx, pose.shoulderF, pose.elbowF, pose.handF, outline, d.color, 6.5);
 
     // 武器
     const weaponPose = Object.assign({}, pose, {
@@ -2028,35 +2036,15 @@ const Render = (() => {
       ctx.restore();
     });
 
-    // 受击白闪：沿骨架描白，不再用矩形填色（旧写法会把背景也染成白块）。
+    // 白闪仅重绘骨架，不对整个已绘制场景使用 source-atop，避免矩形白块。
     if (f.hitFlash > 0) {
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = clamp(f.hitFlash * 4.2, 0, 0.85);
-      ctx.strokeStyle = '#fff';
-      ctx.fillStyle = '#fff';
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.shadowColor = '#fff';
-      ctx.shadowBlur = 16;
-      const bones = [
-        [pose.hip, pose.neck],
-        [pose.hip, pose.kneeF], [pose.kneeF, pose.footF],
-        [pose.hip, pose.kneeB], [pose.kneeB, pose.footB],
-        [pose.shoulderF, pose.elbowF], [pose.elbowF, pose.handF],
-        [pose.shoulderB, pose.elbowB], [pose.elbowB, pose.handB]
-      ];
-      bones.forEach(([a, b], i) => {
-        ctx.lineWidth = i === 0 ? 13 : 8;
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
-      });
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.arc(pose.head.x, pose.head.y, 16, 0, TAU);
-      ctx.stroke();
+      ctx.save(); ctx.globalAlpha = clamp(f.hitFlash / .095, 0, 1) * .85;
+      const white = '#f5fcff';
+      strokeLimb(ctx, pose.hip, pose.kneeF, pose.footF, white, white, 3);
+      strokeLimb(ctx, pose.hip, pose.kneeB, pose.footB, white, white, 2);
+      strokeLimb(ctx, pose.shoulderF, pose.elbowF, pose.handF, white, white, 2.5);
+      line(ctx, pose.hip.x, pose.hip.y, pose.neck.x, pose.neck.y, white, 7);
+      ctx.strokeStyle = white; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(pose.head.x, pose.head.y, pose.headR, 0, TAU); ctx.stroke();
       ctx.restore();
     }
 
@@ -2074,12 +2062,12 @@ const Render = (() => {
   }
 
   function drawShadow(ctx, f) {
-    const air = clamp((f.y - WORLD.ground) / 200, 0, 1);
+    const air = clamp((WORLD.ground - f.y) / 250, 0, 1);
     ctx.save();
     ctx.globalAlpha = 0.34 - air * 0.18;
     ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.ellipse(f.x, WORLD.ground + 4, 34 - air * 8, 8 - air * 3, 0, 0, TAU);
+    ctx.ellipse(f.visualX === undefined ? f.x : f.visualX, WORLD.ground + 4, 36 - air * 12, 8 - air * 3, 0, 0, TAU);
     ctx.fill();
     ctx.restore();
   }
@@ -2408,29 +2396,48 @@ const Render = (() => {
     const p = clamp(1 - e.life / e.maxLife, 0, 1);
     const fade = clamp(e.life / e.maxLife, 0, 1);
     ctx.save();
-    if (e.type === 'slash') {
+    if (e.type === 'impact') {
+      ctx.translate(e.x, e.y); ctx.scale(e.dir || 1, 1);
+      ctx.globalCompositeOperation = 'lighter';
+      const radius = (e.heavy ? 61 : 36) * (.55 + easeOut(p) * .8);
+      ctx.globalAlpha = fade * fade;
+      // 冷色格挡火花与白芯命中星芒使用不同轮廓。
+      const count = e.blocked ? 4 : 6;
+      ctx.fillStyle = e.color;
+      for (let i = 0; i < count; i++) {
+        const angle = i / count * TAU + .22;
+        const length = radius * (i % 2 ? .63 : 1);
+        ctx.save(); ctx.rotate(angle);
+        poly(ctx, [[-4,0],[length*.34,-3],[length,0],[length*.34,3]], e.color);
+        ctx.restore();
+      }
+      ctx.globalAlpha = Math.pow(fade, 3); ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.ellipse(0,0,e.heavy ? 13 : 8,e.heavy ? 24 : 14,-.4,0,TAU); ctx.fill();
+      ctx.globalAlpha = fade * .6; ctx.lineWidth = e.heavy ? 2.5 : 1.5; ctx.strokeStyle = e.color;
+      ctx.beginPath(); ctx.arc(0,0,radius*.6,-1.3,1.3); ctx.stroke();
+    } else if (e.type === 'slash') {
       ctx.translate(e.x, e.y);
       ctx.scale(e.face || 1, 1);
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = fade;
       ctx.strokeStyle = e.color;
       ctx.shadowColor = e.color;
-      ctx.shadowBlur = 18;
+      ctx.shadowBlur = 8;
       const r = e.radius || 90;
-      const start = e.angle - 1.1;
-      const end = e.angle + 1.1;
-      for (let i = 0; i < 3; i++) {
-        ctx.lineWidth = (e.heavy ? 10 : 6) - i * 2;
-        ctx.globalAlpha = fade * (0.55 - i * 0.12);
-        ctx.beginPath();
-        ctx.arc(0, 0, r + i * 8 - p * 8, start + p * 0.4, end - p * 0.2);
-        ctx.stroke();
-      }
+      const angle = (e.angle || 0) - ((e.face || 1) < 0 ? Math.PI : 0);
+      const start = angle - 1.15 + p * .7;
+      const end = angle + 1.05 + p * .18;
+      const outer = r * (.93 + p * .12);
+      const inner = outer - (e.heavy ? 20 : 12) * fade;
+      ctx.globalAlpha = fade * .6;
+      ctx.beginPath(); ctx.arc(0,0,outer,start,end);
+      ctx.quadraticCurveTo(Math.cos(end)*inner,Math.sin(end)*inner,Math.cos(end)*inner,Math.sin(end)*inner);
+      ctx.arc(0,0,Math.max(1,inner),end,start,true); ctx.closePath(); ctx.fillStyle=e.color; ctx.fill();
       ctx.globalAlpha = fade;
       ctx.strokeStyle = 'rgba(255,255,255,0.9)';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(0, 0, r + 4, start + 0.2, end - 0.35);
+      ctx.arc(0, 0, outer - 2, start + 0.15, end - 0.1);
       ctx.stroke();
     } else if (e.type === 'ring') {
       ctx.globalCompositeOperation = 'lighter';
@@ -2630,8 +2637,9 @@ const Render = (() => {
 
   return {
     W, H, GROUND, TAU, clamp, lerp, easeOut, easeInOut, rng,
-    drawMap, drawMapCached, drawFighter, drawShadow, drawProjectile, drawProjectileTrail,
-    drawZone, drawEffect, drawParticle, drawMenuFx, drawAvatar, shade,
+    drawMap, drawFighter, drawShadow, drawProjectile, drawProjectileTrail,
+    drawZone, drawEffect, drawParticle, drawMenuFx, drawAvatar, shade, samplePose: makePose,
+    getRenderStats() { return Object.assign({ backgroundBitmaps: backgroundCache.size }, backgroundStats); },
     drawFigurePreview(ctx, key, x, y, facing, t) {
       const dummy = {
         data: CHARACTERS[key], x, y, facing, vx: 0, vy: 0, onGround: true,

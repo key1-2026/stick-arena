@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/style.css?v=11">
+  <link rel="stylesheet" href="css/ui.css?v=16">
 </head>
 <body>
   <div id="app">
@@ -47,12 +47,11 @@
         </div>
       </header>
 
-      <nav class="step-nav" aria-label="菜单步骤">
-        <button class="step-nav-btn active" data-step-target="rosterPanel" type="button"><b>01</b> 选择斗士</button>
-        <button class="step-nav-btn" data-step-target="stagePanel" type="button"><b>02</b> 选择战场</button>
-        <button class="step-nav-btn" data-step-target="configPanel" type="button"><b>03</b> 对战设置</button>
+      <nav class="mobile-steps" aria-label="对战准备步骤">
+        <a href="#rosterPanel">01 选择斗士</a>
+        <a href="#mapSection">02 选择战场</a>
+        <a href="#matchSettings">03 对战设置</a>
       </nav>
-
       <main class="arena-menu">
         <section class="panel roster-panel" id="rosterPanel">
           <div class="panel-heading">
@@ -63,22 +62,6 @@
             <span class="index-mark">01</span>
           </div>
           <div class="character-grid" id="characterGrid"></div>
-          <div class="fighter-detail" id="fighterDetail">
-            <div class="detail-top">
-              <div>
-                <span class="detail-role" id="detailRole">近战 · 重装</span>
-                <h3 id="detailName">战士 <small>WARDEN</small></h3>
-              </div>
-              <span class="detail-diff" id="detailDiff">稳健</span>
-            </div>
-            <p class="detail-desc" id="detailDesc"></p>
-            <div class="stat-list" id="statList"></div>
-            <div class="detail-skills" id="detailSkills"></div>
-            <div class="basic-note">
-              <span class="note-key">J</span>
-              <div><b id="basicName">裂风三连斩</b><small id="basicHint"></small></div>
-            </div>
-          </div>
           <div class="roster-foot">
             <span>七名斗士 · 独立技能组</span>
             <span class="dots">///////</span>
@@ -109,13 +92,33 @@
               <small id="previewDiff">老兵</small>
             </div>
             <div class="preview-bottom">
-              <span>FIGHT UNTIL THE CLOCK STOPS</span>
+              <span>选择你的斗士，准备开战</span>
               <span class="preview-line"></span>
               <span id="previewMapEn">LAVA RIFT</span>
             </div>
           </div>
 
-          <div class="map-section" id="stagePanel">
+          <details class="fighter-detail" id="fighterDetail" open>
+            <summary class="detail-summary">
+            <div class="detail-top">
+              <div>
+                <span class="detail-role" id="detailRole">近战 · 重装</span>
+                <h3 id="detailName">战士 <small>WARDEN</small></h3>
+              </div>
+              <span class="detail-diff" id="detailDiff">稳健</span>
+            </div>
+            <span class="profile-toggle">技能档案</span>
+            </summary>
+            <p class="detail-desc" id="detailDesc"></p>
+            <div class="stat-list" id="statList"></div>
+            <div class="detail-skills" id="detailSkills"></div>
+            <div class="basic-note">
+              <span class="note-key">J</span>
+              <div><b id="basicName">裂风三连斩</b><small id="basicHint"></small></div>
+            </div>
+          </details>
+
+          <div class="map-section" id="mapSection">
             <div class="section-title">
               <div><span class="eyebrow">STEP 02 / STAGE</span><h3>选择战场</h3></div>
               <span id="mapDesc" class="section-desc">灼热岩层与飞散的火星</span>
@@ -124,7 +127,7 @@
           </div>
         </section>
 
-        <aside class="panel config-panel" id="configPanel">
+        <aside class="panel config-panel" id="matchSettings">
           <div class="panel-heading compact">
             <div>
               <span class="eyebrow">STEP 03 / MATCH</span>
@@ -160,7 +163,7 @@
 
           <button id="trainingBtn" class="training-entry" type="button">
             <span class="te-icon">◎</span>
-            <span class="te-copy"><b>训练场</b><small>TRAINING GROUND · 木桩 / 技能练习</small></span>
+            <span class="te-copy"><b>训练场</b><small>熟悉技能，自由练习连招</small></span>
             <span class="te-arrow">→</span>
           </button>
 
@@ -171,13 +174,9 @@
         </aside>
       </main>
 
-      <button id="stickyStartBtn" class="sticky-start" type="button">
-        <span>开战</span><small>ENTER THE ARENA</small>
-      </button>
-
       <footer class="menu-footer">
-        <span>STICK//ARENA © 2026 · BUILD 2026.10.28 / v11</span>
-        <span>七职业 · 多种地图 · 动态充能</span>
+        <span>STICK//ARENA · 火柴人竞技场</span>
+        <span>BUILD 2026.10.28 / v16 · 七职业 · 动态充能</span>
         <span class="footer-tip">按 <kbd>?</kbd> 查看玩法</span>
       </footer>
     </section>
@@ -185,6 +184,7 @@
     <section id="gameScreen" class="game-screen" hidden>
       <div class="game-frame" id="gameFrame">
         <canvas id="gameCanvas" width="1600" height="900"></canvas>
+      </div>
 
         <div class="battle-hud">
           <div class="hud-top">
@@ -248,7 +248,7 @@
           </div>
 
           <div class="cpu-badge"><i></i><span id="cpuBadge">CPU · 老兵</span></div>
-          <button id="pauseBtn" class="pause-chip" type="button"><span>II</span> 暂停 <kbd>ESC</kbd></button>
+          <button id="pauseBtn" class="pause-chip" aria-label="暂停游戏" type="button"><span>II</span> 暂停 <kbd>ESC</kbd></button>
           <button id="fsBtn" class="fs-chip" type="button" aria-label="切换全屏" title="全屏">⛶</button>
           <button id="muteGameBtn" class="sound-chip" type="button" aria-label="切换声音">♪</button>
         </div>
@@ -278,68 +278,87 @@
         <div class="screen-flash" id="screenFlash"></div>
         <div class="hit-vignette" id="hitVignette"></div>
 
-      </div>
-
-
-      <div class="modal-layer pause-layer" id="pauseOverlay" hidden>
-        <div class="modal-card pause-card">
-          <span class="eyebrow">MATCH SUSPENDED</span>
-          <h2>战斗暂停</h2>
-          <p>时间已冻结。准备好后继续，或重新开始本场对决。</p>
-          <div class="pause-actions">
-            <button class="primary-btn" id="resumeBtn" type="button">继续战斗 <kbd>ESC</kbd></button>
-            <button class="ghost-btn" id="restartBtn" type="button">重新开始</button>
-            <button class="ghost-btn" id="quitBtn" type="button">返回大厅</button>
-          </div>
-          <div class="pause-shortcuts">
-            <span><kbd>A</kbd><kbd>D</kbd> 移动</span>
-            <span><kbd>K</kbd> 跳跃 / 二段跳</span>
-            <span><kbd>J</kbd> 普攻</span>
-            <span><kbd>U</kbd><kbd>I</kbd><kbd>O</kbd> 技能</span>
-            <span><kbd>L</kbd> 终极技能</span>
-            <span><kbd>S</kbd> 格挡</span>
-            <span><kbd>SHIFT</kbd> 闪避</span>
+        <div class="modal-layer pause-layer" id="pauseOverlay" hidden>
+          <div class="modal-card pause-card">
+            <span class="eyebrow">MATCH SUSPENDED</span>
+            <h2>战斗暂停</h2>
+            <p>时间已冻结。准备好后继续，或重新开始本场对决。</p>
+            <div class="pause-actions">
+              <button class="primary-btn" id="resumeBtn" type="button">继续战斗 <kbd>ESC</kbd></button>
+              <button class="ghost-btn" id="restartBtn" type="button">重新开始</button>
+              <button class="ghost-btn" id="quitBtn" type="button">返回大厅</button>
+            </div>
+            <div class="pause-shortcuts">
+              <span><kbd>A</kbd><kbd>D</kbd> 移动</span>
+              <span><kbd>K</kbd> 跳跃 / 二段跳</span>
+              <span><kbd>J</kbd> 普攻</span>
+              <span><kbd>U</kbd><kbd>I</kbd><kbd>O</kbd> 技能</span>
+              <span><kbd>L</kbd> 终极技能</span>
+              <span><kbd>S</kbd> 格挡</span>
+              <span><kbd>SHIFT</kbd> 闪避</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="modal-layer result-layer" id="resultOverlay" hidden>
-        <div class="modal-card result-card">
-          <div class="result-topline">
-            <span class="eyebrow" id="resultKicker">MATCH COMPLETE</span>
-            <span class="result-badge" id="resultBadge">VICTORY</span>
-          </div>
-          <h2 id="resultTitle">胜利</h2>
-          <p id="resultSub">你击败了对手。</p>
-          <div class="result-scoreboard">
-            <div class="rs-side p1">
-              <span id="rsP1Name">战士</span>
-              <strong id="rsP1Hp">42%</strong>
-              <small>剩余生命</small>
+        <div class="modal-layer result-layer" id="resultOverlay" hidden>
+          <div class="modal-card result-card">
+            <div class="result-topline">
+              <span class="eyebrow" id="resultKicker">MATCH COMPLETE</span>
+              <span class="result-badge" id="resultBadge">VICTORY</span>
             </div>
-            <div class="rs-center">
-              <span id="resultReason">KO</span>
-              <i></i>
-              <small id="resultTime">02:14</small>
+            <h2 id="resultTitle">胜利</h2>
+            <p id="resultSub">你击败了对手。</p>
+            <div class="result-scoreboard">
+              <div class="rs-side p1">
+                <span id="rsP1Name">战士</span>
+                <strong id="rsP1Hp">42%</strong>
+                <small>剩余生命</small>
+              </div>
+              <div class="rs-center">
+                <span id="resultReason">KO</span>
+                <i></i>
+                <small id="resultTime">02:14</small>
+              </div>
+              <div class="rs-side p2">
+                <span id="rsP2Name">法师</span>
+                <strong id="rsP2Hp">0%</strong>
+                <small>剩余生命</small>
+              </div>
             </div>
-            <div class="rs-side p2">
-              <span id="rsP2Name">法师</span>
-              <strong id="rsP2Hp">0%</strong>
-              <small>剩余生命</small>
+            <div class="result-stats" id="resultStats">
+              <div><span>总伤害</span><b id="statDamage">0</b></div>
+              <div><span>最高连击</span><b id="statCombo">0</b></div>
+              <div><span>技能命中</span><b id="statSkills">0</b></div>
+              <div><span>大招释放</span><b id="statUlt">0</b></div>
             </div>
-          </div>
-          <div class="result-stats" id="resultStats">
-            <div><span>总伤害</span><b id="statDamage">0</b></div>
-            <div><span>最高连击</span><b id="statCombo">0</b></div>
-            <div><span>技能命中</span><b id="statSkills">0</b></div>
-            <div><span>大招释放</span><b id="statUlt">0</b></div>
-          </div>
-          <div class="result-actions">
-            <button class="primary-btn" id="rematchBtn" type="button">再来一局 <span>↻</span></button>
-            <button class="ghost-btn" id="backMenuBtn" type="button">返回大厅</button>
+            <div class="result-actions">
+              <button class="primary-btn" id="rematchBtn" type="button">再来一局 <span>↻</span></button>
+              <button class="ghost-btn" id="backMenuBtn" type="button">返回大厅</button>
+            </div>
           </div>
         </div>
-      </div>
+
+      <aside class="keyboard-guide" id="keyboardGuide" aria-label="键盘操作说明">
+        <div class="kb-heading">
+          <strong>操作按键</strong>
+          <button class="kb-toggle" id="keyboardGuideToggle" type="button" aria-expanded="true" aria-controls="keyboardGuideContent">收起</button>
+        </div>
+        <div id="keyboardGuideContent">
+        <div class="kb-row"><span class="kb-keys"><kbd>A</kbd><kbd>D</kbd></span><span>左右移动</span></div>
+        <div class="kb-row"><span class="kb-keys"><kbd>K</kbd></span><span>跳跃 / 二段跳</span></div>
+        <div class="kb-row"><span class="kb-keys"><kbd>J</kbd></span><span id="kbBasicName">普攻 · 三段连击</span></div>
+        <div class="kb-divider"></div>
+        <div class="kb-row kb-skill"><span class="kb-keys"><kbd>U</kbd></span><span id="kbSkillName0">技能一</span><small id="kbSkillState0">就绪</small></div>
+        <div class="kb-row kb-skill"><span class="kb-keys"><kbd>I</kbd></span><span id="kbSkillName1">技能二</span><small id="kbSkillState1">就绪</small></div>
+        <div class="kb-row kb-skill"><span class="kb-keys"><kbd>O</kbd></span><span id="kbSkillName2">技能三</span><small id="kbSkillState2">就绪</small></div>
+        <div class="kb-row kb-skill"><span class="kb-keys"><kbd>L</kbd></span><span id="kbUltName">终极技能</span><small id="kbUltState">0%</small></div>
+        <div class="kb-divider"></div>
+        <div class="kb-row"><span class="kb-keys"><kbd>S</kbd></span><span>按住格挡</span></div>
+        <div class="kb-row"><span class="kb-keys"><kbd>SHIFT</kbd></span><span>闪避</span></div>
+        <div class="kb-row"><span class="kb-keys"><kbd>ESC</kbd></span><span>暂停 / 继续</span></div>
+        <p class="kb-note">连续按 J 衔接三连击</p>
+        </div>
+      </aside>
 
       <div class="modal-layer layout-layer" id="layoutOverlay" hidden>
         <div class="modal-card layout-card">
@@ -367,7 +386,7 @@
         <button class="touch-pause" id="touchPauseBtn" type="button" aria-label="暂停">Ⅱ</button>
         <button class="touch-pause touch-mute" id="touchMuteBtn" type="button" aria-label="切换声音">♪</button>
         <button class="touch-pause touch-fs" id="touchFsBtn" type="button" aria-label="切换全屏">⛶</button>
-        <button class="touch-pause touch-layout" id="touchLayoutBtn" type="button" aria-label="自定义手机键位">⌗</button>
+        <button class="touch-pause touch-layout" id="touchLayoutBtn" type="button" aria-label="自定义手机键位">布局</button>
         <div class="touch-cluster touch-move">
           <div class="touch-stick" id="touchStick" data-layout="stick" role="group" aria-label="移动轮盘，左右拖动">
             <span class="stick-ring"></span>
@@ -375,32 +394,30 @@
             <span class="stick-label">移动</span>
           </div>
         </div>
-        <div class="touch-cluster touch-defense">
+        <div class="touch-cluster touch-actions">
           <button class="touch-btn touch-block" data-layout="block" data-touch="KeyS" type="button" aria-label="格挡 S，按住抵挡正面攻击">
-            <b class="tb-main">挡</b><span class="tb-key">S</span><span class="tb-guard"><i></i></span>
+            <b class="tb-main">挡</b><span class="tb-label">格挡</span><span class="tb-key">S</span><span class="tb-guard"><i></i></span>
           </button>
           <button class="touch-btn touch-dodge" data-layout="dodge" data-touch="ShiftLeft" type="button" aria-label="闪避 Shift">
-            <b class="tb-main">闪</b><span class="tb-key">SH</span><span class="tb-cd"></span>
+            <b class="tb-main">闪</b><span class="tb-label">闪避</span><span class="tb-key">SH</span><span class="tb-cd"></span>
           </button>
-        </div>
-        <div class="touch-cluster touch-actions">
           <button class="touch-btn touch-skill" data-layout="skill0" data-touch="KeyU" data-slot="0" type="button" aria-label="技能 U">
-            <span class="tb-key">U</span><b class="tb-glyph">技</b><span class="tb-name">技能</span><span class="tb-cd"></span>
+            <span class="tb-key">U</span><b class="tb-glyph">技</b><span class="tb-label">技能</span><span class="tb-cd"></span>
           </button>
           <button class="touch-btn touch-skill" data-layout="skill1" data-touch="KeyI" data-slot="1" type="button" aria-label="技能 I">
-            <span class="tb-key">I</span><b class="tb-glyph">技</b><span class="tb-name">技能</span><span class="tb-cd"></span>
+            <span class="tb-key">I</span><b class="tb-glyph">技</b><span class="tb-label">技能</span><span class="tb-cd"></span>
           </button>
           <button class="touch-btn touch-skill" data-layout="skill2" data-touch="KeyO" data-slot="2" type="button" aria-label="技能 O">
-            <span class="tb-key">O</span><b class="tb-glyph">技</b><span class="tb-name">技能</span><span class="tb-cd"></span>
+            <span class="tb-key">O</span><b class="tb-glyph">技</b><span class="tb-label">技能</span><span class="tb-cd"></span>
           </button>
           <button class="touch-btn touch-jump" data-layout="jump" data-touch="KeyK" type="button" aria-label="跳跃 K">
-            <b class="tb-main">跳</b><span class="tb-key">K</span>
+            <b class="tb-main">跳</b><span class="tb-label">跳跃</span><span class="tb-key">K</span>
           </button>
           <button class="touch-btn touch-ult" data-layout="ult" data-touch="KeyL" type="button" aria-label="终极技能 L">
-            <span class="tb-key">L</span><b class="tb-glyph">终</b><span class="tb-name">终极</span><span class="tb-cd"></span>
+            <span class="tb-key">L</span><b class="tb-glyph">终</b><span class="tb-label">终极</span><span class="tb-cd"></span>
           </button>
           <button class="touch-btn touch-attack" data-layout="attack" data-touch="KeyJ" type="button" aria-label="普通攻击 J">
-            <b class="tb-main">攻</b><span class="tb-key">J</span>
+            <b class="tb-main">攻</b><span class="tb-label">普攻</span><span class="tb-key">J</span>
           </button>
         </div>
       </div>
@@ -472,22 +489,22 @@
     <div class="modal-layer help-layer" id="helpOverlay" hidden>
       <div class="modal-card help-card">
         <button class="modal-close" id="helpClose" type="button">×</button>
+        <button class="help-collapse" id="helpCollapseBtn" type="button" aria-expanded="true">收起说明</button>
         <span class="eyebrow">FIELD MANUAL / 01</span>
         <h2>竞技场手册</h2>
-        <button class="help-toggle" id="helpToggleBtn" type="button" aria-expanded="true">收起操作说明</button>
         <div class="help-columns">
           <div class="help-col">
             <h4>操作</h4>
             <div class="key-list">
               <div><span><kbd>A</kbd><kbd>D</kbd></span><p>左右移动</p></div>
               <div><span><kbd>K</kbd></span><p>跳跃 · 空中再按一次二段跳</p></div>
-              <div><span><kbd>J</kbd></span><p>专属普攻 · 连续按键打出三段连击</p></div>
+              <div><span><kbd>J</kbd></span><p>专属普攻 · 连按衔接三段；命中或被格挡后可接技能，轻击命中可接跳跃。空挥需完成收招。</p></div>
               <div><span><kbd>U</kbd><kbd>I</kbd><kbd>O</kbd></span><p>三个专属技能，各自拥有冷却</p></div>
               <div><span><kbd>L</kbd></span><p>终极技能，需要 100% 充能</p></div>
               <div><span><kbd>S</kbd></span><p>格挡 · 按住抵挡正面攻击并消耗格挡值</p></div>
               <div><span><kbd>SHIFT</kbd></span><p>闪避 · 短距离位移，期间无敌，有冷却</p></div>
               <div><span><kbd>ESC</kbd></span><p>暂停 / 继续</p></div>
-              <div><span><kbd>手机</kbd></span><p>左侧轮盘移动，右侧跳跃、普攻、技能与大招；右侧上方“挡 / 闪”用于格挡和闪避</p></div>
+              <div><span><kbd>手机</kbd></span><p>左侧轮盘移动，右侧跳跃、普攻、技能与大招；右侧“挡 / 闪”用于格挡和闪避</p></div>
               <div><span><kbd>布局</kbd></span><p>手机右上角“⌗”进入自定义键位；可拖动轮盘、格挡、闪避与每个技能按钮，保存后自动适配横屏</p></div>
               <div><span><kbd>训练</kbd></span><p>主菜单进入训练场；开启“木桩反击”可练习格挡、闪避与破防时机</p></div>
             </div>
@@ -498,9 +515,11 @@
               <li><b>三分钟决胜</b><span>倒计时归零时，剩余生命百分比更高的一方获胜；生命归零则直接 KO。</span></li>
               <li><b>双向充能</b><span>命中敌人或受到伤害都会积攒终极充能。打得越凶，大招来得越快。</span></li>
               <li><b>技能冷却</b><span>三个技能独立冷却，槽位上的数字和遮罩显示剩余时间。</span></li>
-              <li><b>格挡与破防</b><span>格挡只挡正面并持续消耗格挡值；格挡值耗尽会破防，短时间内无法再挡。</span></li>
+              <li><b>格挡与破防</b><span>格挡抵挡正面攻击；普攻不造成削血，技能仍有部分伤害。防御硬直结束后才能反击，格挡值耗尽则会破防。</span></li>
               <li><b>闪避时机</b><span>闪避有短暂无敌帧和冷却，适合穿过弹道或躲开大招，但不能连续无脑使用。</span></li>
-              <li><b>自由穿行</b><span>双方身体不会互相阻挡，可以穿过对手调整身位；只有攻击判定和场地边界会限制移动。</span></li>
+              <li><b>距离与换边</b><span>移动中可以直接穿过对手，不会被身位卡住；贴身停下时才会轻微分离。近战起手带有踏步，空挥会露出收招破绽。</span></li>
+              <li><b>命中确认</b><span>连续命中硬直中的对手才计为连击。普攻命中后接技能，技能命中并完成判定后可接满能量大招；长连招的伤害会逐步降低。</span></li>
+              <li><b>反击与互击</b><span>打断对手起手会触发反击并延长硬直。双方同帧出手可以互击，最后一击也可能同时倒地。</span></li>
               <li><b>角色克制</b><span>远程擅长拉扯，近战擅长贴脸。利用跳跃躲避弹道与地面火场。</span></li>
             </ul>
             <div class="help-energy">
@@ -514,10 +533,10 @@
     </div>
   </div>
 
-  <script src="js/data.js?v=11"></script>
-  <script src="js/audio.js?v=11"></script>
-  <script src="js/render.js?v=11"></script>
-  <script src="js/entities.js?v=11"></script>
-  <script src="js/game.js?v=11"></script>
+  <script src="js/data.js?v=16"></script>
+  <script src="js/audio.js?v=16"></script>
+  <script src="js/render.js?v=16"></script>
+  <script src="js/entities.js?v=16"></script>
+  <script src="js/game.js?v=16"></script>
 </body>
 </html>
