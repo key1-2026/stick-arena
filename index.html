@@ -14,7 +14,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=11">
 </head>
 <body>
   <div id="app">
@@ -47,8 +47,14 @@
         </div>
       </header>
 
+      <nav class="step-nav" aria-label="菜单步骤">
+        <button class="step-nav-btn active" data-step-target="rosterPanel" type="button"><b>01</b> 选择斗士</button>
+        <button class="step-nav-btn" data-step-target="stagePanel" type="button"><b>02</b> 选择战场</button>
+        <button class="step-nav-btn" data-step-target="configPanel" type="button"><b>03</b> 对战设置</button>
+      </nav>
+
       <main class="arena-menu">
-        <section class="panel roster-panel">
+        <section class="panel roster-panel" id="rosterPanel">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">STEP 01 / FIGHTER</span>
@@ -109,7 +115,7 @@
             </div>
           </div>
 
-          <div class="map-section">
+          <div class="map-section" id="stagePanel">
             <div class="section-title">
               <div><span class="eyebrow">STEP 02 / STAGE</span><h3>选择战场</h3></div>
               <span id="mapDesc" class="section-desc">灼热岩层与飞散的火星</span>
@@ -118,7 +124,7 @@
           </div>
         </section>
 
-        <aside class="panel config-panel">
+        <aside class="panel config-panel" id="configPanel">
           <div class="panel-heading compact">
             <div>
               <span class="eyebrow">STEP 03 / MATCH</span>
@@ -165,8 +171,12 @@
         </aside>
       </main>
 
+      <button id="stickyStartBtn" class="sticky-start" type="button">
+        <span>开战</span><small>ENTER THE ARENA</small>
+      </button>
+
       <footer class="menu-footer">
-        <span>STICK//ARENA © 2026 · BUILT WITH CANVAS</span>
+        <span>STICK//ARENA © 2026 · BUILD 2026.10.28 / v11</span>
         <span>七职业 · 多种地图 · 动态充能</span>
         <span class="footer-tip">按 <kbd>?</kbd> 查看玩法</span>
       </footer>
@@ -268,63 +278,65 @@
         <div class="screen-flash" id="screenFlash"></div>
         <div class="hit-vignette" id="hitVignette"></div>
 
-        <div class="modal-layer pause-layer" id="pauseOverlay" hidden>
-          <div class="modal-card pause-card">
-            <span class="eyebrow">MATCH SUSPENDED</span>
-            <h2>战斗暂停</h2>
-            <p>时间已冻结。准备好后继续，或重新开始本场对决。</p>
-            <div class="pause-actions">
-              <button class="primary-btn" id="resumeBtn" type="button">继续战斗 <kbd>ESC</kbd></button>
-              <button class="ghost-btn" id="restartBtn" type="button">重新开始</button>
-              <button class="ghost-btn" id="quitBtn" type="button">返回大厅</button>
-            </div>
-            <div class="pause-shortcuts">
-              <span><kbd>A</kbd><kbd>D</kbd> 移动</span>
-              <span><kbd>K</kbd> 跳跃 / 二段跳</span>
-              <span><kbd>J</kbd> 普攻</span>
-              <span><kbd>U</kbd><kbd>I</kbd><kbd>O</kbd> 技能</span>
-              <span><kbd>L</kbd> 终极技能</span>
-              <span><kbd>S</kbd> 格挡</span>
-              <span><kbd>SHIFT</kbd> 闪避</span>
-            </div>
+      </div>
+
+
+      <div class="modal-layer pause-layer" id="pauseOverlay" hidden>
+        <div class="modal-card pause-card">
+          <span class="eyebrow">MATCH SUSPENDED</span>
+          <h2>战斗暂停</h2>
+          <p>时间已冻结。准备好后继续，或重新开始本场对决。</p>
+          <div class="pause-actions">
+            <button class="primary-btn" id="resumeBtn" type="button">继续战斗 <kbd>ESC</kbd></button>
+            <button class="ghost-btn" id="restartBtn" type="button">重新开始</button>
+            <button class="ghost-btn" id="quitBtn" type="button">返回大厅</button>
+          </div>
+          <div class="pause-shortcuts">
+            <span><kbd>A</kbd><kbd>D</kbd> 移动</span>
+            <span><kbd>K</kbd> 跳跃 / 二段跳</span>
+            <span><kbd>J</kbd> 普攻</span>
+            <span><kbd>U</kbd><kbd>I</kbd><kbd>O</kbd> 技能</span>
+            <span><kbd>L</kbd> 终极技能</span>
+            <span><kbd>S</kbd> 格挡</span>
+            <span><kbd>SHIFT</kbd> 闪避</span>
           </div>
         </div>
+      </div>
 
-        <div class="modal-layer result-layer" id="resultOverlay" hidden>
-          <div class="modal-card result-card">
-            <div class="result-topline">
-              <span class="eyebrow" id="resultKicker">MATCH COMPLETE</span>
-              <span class="result-badge" id="resultBadge">VICTORY</span>
+      <div class="modal-layer result-layer" id="resultOverlay" hidden>
+        <div class="modal-card result-card">
+          <div class="result-topline">
+            <span class="eyebrow" id="resultKicker">MATCH COMPLETE</span>
+            <span class="result-badge" id="resultBadge">VICTORY</span>
+          </div>
+          <h2 id="resultTitle">胜利</h2>
+          <p id="resultSub">你击败了对手。</p>
+          <div class="result-scoreboard">
+            <div class="rs-side p1">
+              <span id="rsP1Name">战士</span>
+              <strong id="rsP1Hp">42%</strong>
+              <small>剩余生命</small>
             </div>
-            <h2 id="resultTitle">胜利</h2>
-            <p id="resultSub">你击败了对手。</p>
-            <div class="result-scoreboard">
-              <div class="rs-side p1">
-                <span id="rsP1Name">战士</span>
-                <strong id="rsP1Hp">42%</strong>
-                <small>剩余生命</small>
-              </div>
-              <div class="rs-center">
-                <span id="resultReason">KO</span>
-                <i></i>
-                <small id="resultTime">02:14</small>
-              </div>
-              <div class="rs-side p2">
-                <span id="rsP2Name">法师</span>
-                <strong id="rsP2Hp">0%</strong>
-                <small>剩余生命</small>
-              </div>
+            <div class="rs-center">
+              <span id="resultReason">KO</span>
+              <i></i>
+              <small id="resultTime">02:14</small>
             </div>
-            <div class="result-stats" id="resultStats">
-              <div><span>总伤害</span><b id="statDamage">0</b></div>
-              <div><span>最高连击</span><b id="statCombo">0</b></div>
-              <div><span>技能命中</span><b id="statSkills">0</b></div>
-              <div><span>大招释放</span><b id="statUlt">0</b></div>
+            <div class="rs-side p2">
+              <span id="rsP2Name">法师</span>
+              <strong id="rsP2Hp">0%</strong>
+              <small>剩余生命</small>
             </div>
-            <div class="result-actions">
-              <button class="primary-btn" id="rematchBtn" type="button">再来一局 <span>↻</span></button>
-              <button class="ghost-btn" id="backMenuBtn" type="button">返回大厅</button>
-            </div>
+          </div>
+          <div class="result-stats" id="resultStats">
+            <div><span>总伤害</span><b id="statDamage">0</b></div>
+            <div><span>最高连击</span><b id="statCombo">0</b></div>
+            <div><span>技能命中</span><b id="statSkills">0</b></div>
+            <div><span>大招释放</span><b id="statUlt">0</b></div>
+          </div>
+          <div class="result-actions">
+            <button class="primary-btn" id="rematchBtn" type="button">再来一局 <span>↻</span></button>
+            <button class="ghost-btn" id="backMenuBtn" type="button">返回大厅</button>
           </div>
         </div>
       </div>
@@ -373,19 +385,19 @@
         </div>
         <div class="touch-cluster touch-actions">
           <button class="touch-btn touch-skill" data-layout="skill0" data-touch="KeyU" data-slot="0" type="button" aria-label="技能 U">
-            <span class="tb-key">U</span><b class="tb-glyph">技</b><span class="tb-cd"></span>
+            <span class="tb-key">U</span><b class="tb-glyph">技</b><span class="tb-name">技能</span><span class="tb-cd"></span>
           </button>
           <button class="touch-btn touch-skill" data-layout="skill1" data-touch="KeyI" data-slot="1" type="button" aria-label="技能 I">
-            <span class="tb-key">I</span><b class="tb-glyph">技</b><span class="tb-cd"></span>
+            <span class="tb-key">I</span><b class="tb-glyph">技</b><span class="tb-name">技能</span><span class="tb-cd"></span>
           </button>
           <button class="touch-btn touch-skill" data-layout="skill2" data-touch="KeyO" data-slot="2" type="button" aria-label="技能 O">
-            <span class="tb-key">O</span><b class="tb-glyph">技</b><span class="tb-cd"></span>
+            <span class="tb-key">O</span><b class="tb-glyph">技</b><span class="tb-name">技能</span><span class="tb-cd"></span>
           </button>
           <button class="touch-btn touch-jump" data-layout="jump" data-touch="KeyK" type="button" aria-label="跳跃 K">
             <b class="tb-main">跳</b><span class="tb-key">K</span>
           </button>
           <button class="touch-btn touch-ult" data-layout="ult" data-touch="KeyL" type="button" aria-label="终极技能 L">
-            <span class="tb-key">L</span><b class="tb-glyph">终</b><span class="tb-cd"></span>
+            <span class="tb-key">L</span><b class="tb-glyph">终</b><span class="tb-name">终极</span><span class="tb-cd"></span>
           </button>
           <button class="touch-btn touch-attack" data-layout="attack" data-touch="KeyJ" type="button" aria-label="普通攻击 J">
             <b class="tb-main">攻</b><span class="tb-key">J</span>
@@ -462,6 +474,7 @@
         <button class="modal-close" id="helpClose" type="button">×</button>
         <span class="eyebrow">FIELD MANUAL / 01</span>
         <h2>竞技场手册</h2>
+        <button class="help-toggle" id="helpToggleBtn" type="button" aria-expanded="true">收起操作说明</button>
         <div class="help-columns">
           <div class="help-col">
             <h4>操作</h4>
@@ -501,10 +514,10 @@
     </div>
   </div>
 
-  <script src="js/data.js"></script>
-  <script src="js/audio.js"></script>
-  <script src="js/render.js"></script>
-  <script src="js/entities.js"></script>
-  <script src="js/game.js"></script>
+  <script src="js/data.js?v=11"></script>
+  <script src="js/audio.js?v=11"></script>
+  <script src="js/render.js?v=11"></script>
+  <script src="js/entities.js?v=11"></script>
+  <script src="js/game.js?v=11"></script>
 </body>
 </html>

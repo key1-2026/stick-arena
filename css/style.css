@@ -3245,3 +3245,146 @@ kbd {
 @media (any-pointer: coarse) and (orientation: portrait) {
   .training-bar { top: calc(var(--touch-top) + 6px); width: min(300px, calc(100vw - 20px)); }
 }
+
+/* 菜单步骤导航与常驻开战 */
+.step-nav {
+  position: sticky;
+  top: 76px;
+  z-index: 24;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: calc(100% - 32px);
+  margin: 4px auto 10px;
+  padding: 4px;
+  border: 1px solid rgba(255,255,255,.09);
+  background: rgba(5,9,14,.78);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 10px 30px rgba(0,0,0,.24);
+}
+.step-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  color: rgba(214,224,232,.58);
+  font-size: 11px;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+.step-nav-btn b {
+  color: rgba(255,194,126,.72);
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 400;
+}
+.step-nav-btn:hover { color: #fff; border-color: rgba(255,194,126,.25); }
+.step-nav-btn.active {
+  color: #fff;
+  border-color: rgba(255,194,126,.38);
+  background: rgba(255,194,126,.08);
+}
+.step-nav-btn.active b { color: var(--accent-2); }
+
+.sticky-start {
+  display: none;
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 80;
+  width: 116px;
+  height: 58px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1px solid rgba(255,194,126,.58);
+  background: linear-gradient(145deg, rgba(255,176,103,.97), rgba(255,96,69,.96));
+  color: #1a0d08;
+  box-shadow: 0 12px 32px rgba(0,0,0,.42), 0 0 28px rgba(255,122,69,.18);
+}
+.sticky-start span {
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  line-height: 1;
+}
+.sticky-start small {
+  font-family: var(--mono);
+  font-size: 6px;
+  letter-spacing: .1em;
+}
+
+/* 操作说明折叠 */
+.help-toggle {
+  margin-top: 12px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid rgba(255,194,126,.24);
+  color: rgba(255,214,166,.86);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: .08em;
+}
+.help-toggle:hover { border-color: rgba(255,194,126,.58); color: #fff; }
+.help-card.controls-collapsed .help-col:first-child .key-list { display: none; }
+.help-card.controls-collapsed .help-col:first-child { opacity: .82; }
+
+/* 电脑端：键位/冷却放在左侧 */
+.skill-dock {
+  left: 24px;
+  bottom: 22px;
+  width: 556px;
+  transform: none;
+}
+.dock-head { font-size: 8.5px; }
+.skill-name { font-size: 11px; }
+.dock-hint { font-size: 8.5px; }
+
+/* 手机技能按钮显示完整技能名 */
+.tb-name {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: rgba(255,255,255,.62);
+  font-size: calc(var(--tb) * .155);
+  line-height: 1.1;
+  letter-spacing: 0;
+  pointer-events: none;
+}
+.touch-skill .tb-glyph, .touch-ult .tb-glyph { transform: translateY(-3px); }
+.touch-skill .tb-key, .touch-ult .tb-key { opacity: .72; }
+.touch-btn.blocked {
+  border-color: #ff7b7b !important;
+  box-shadow: 0 0 0 2px rgba(255,123,123,.28), 0 0 18px rgba(255,80,80,.25);
+}
+
+/* 暂停/结算已移出缩放画框，不再需要旧版的放大补偿。 */
+.pause-layer .pause-card,
+.result-layer .result-card {
+  transform: none !important;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+@media (max-width: 900px), (pointer: coarse) {
+  .step-nav {
+    top: 64px;
+    max-width: calc(100% - 16px);
+    overflow-x: auto;
+    justify-content: flex-start;
+    scrollbar-width: none;
+  }
+  .step-nav::-webkit-scrollbar { display: none; }
+  .step-nav-btn { height: 30px; padding: 0 10px; font-size: 10px; }
+  .sticky-start { display: flex; }
+  .help-toggle { height: 26px; font-size: 7.5px; }
+}

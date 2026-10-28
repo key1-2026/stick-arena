@@ -238,6 +238,39 @@ const Menu = {
       GameAudio.ui();
       Game.startMatch(this.config);
     });
+    const stickyStart = $('stickyStartBtn');
+    if (stickyStart) {
+      stickyStart.addEventListener('click', () => {
+        GameAudio.init();
+        GameAudio.ui();
+        Game.startMatch(this.config);
+      });
+    }
+    document.querySelectorAll('.step-nav-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = $(btn.dataset.stepTarget);
+        if (!target) return;
+        document.querySelectorAll('.step-nav-btn').forEach(b => b.classList.toggle('active', b === btn));
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+    const helpToggle = $('helpToggleBtn');
+    const helpCard = document.querySelector('#helpOverlay .help-card');
+    if (helpToggle && helpCard) {
+      const applyHelpCollapse = collapsed => {
+        helpCard.classList.toggle('controls-collapsed', collapsed);
+        helpToggle.textContent = collapsed ? '展开操作说明' : '收起操作说明';
+        helpToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      };
+      let helpCollapsed = false;
+      try { helpCollapsed = localStorage.getItem('stickArenaHelpCollapsed') === '1'; } catch (e) { /* noop */ }
+      applyHelpCollapse(helpCollapsed);
+      helpToggle.addEventListener('click', () => {
+        const next = !helpCard.classList.contains('controls-collapsed');
+        applyHelpCollapse(next);
+        try { localStorage.setItem('stickArenaHelpCollapsed', next ? '1' : '0'); } catch (e) { /* noop */ }
+      });
+    }
     $('trainingBtn').addEventListener('click', () => {
       GameAudio.init();
       GameAudio.ui();
@@ -756,14 +789,28 @@ const TouchControls = {
   },
 
   saveLayout() {
-    if (!this.layout) return;
+    if (!this.layout) return false;
+    const keys = Object.keys(this.layout);
+    for (let i = 0; i < keys.length; i++) {
+      for (let j = i + 1; j < keys.length; j++) {
+        const a = this.layout[keys[i]], b = this.layout[keys[j]];
+        if (Math.abs(a[0] - b[0]) < 13.5 && Math.abs(a[1] - b[1]) < 16.5) {
+          if (typeof Game !== 'undefined' && Game.toast) {
+            Game.toast('键位重叠 · 请把按钮稍稍分开', '#ff9b8f', 1.6);
+          }
+          this.endLayoutEdit();
+          return false;
+        }
+      }
+    }
     try {
       localStorage.setItem('stickArenaTouchLayout', JSON.stringify({
-        version: 1,
+        version: 2,
         controls: this.layout
       }));
     } catch (e) { /* 隐私模式可能禁用存储 */ }
     this.endLayoutEdit();
+    return true;
   },
 
   cancelLayoutEdit() {
@@ -787,6 +834,17 @@ const TouchControls = {
     }
   },
 
+  layoutCollides(key, x, y) {
+    if (!this.layout) return false;
+    const minX = 13.5;
+    const minY = 16.5;
+    return Object.keys(this.layout).some(k => {
+      if (k === key) return false;
+      const p = this.layout[k];
+      return Math.abs(x - p[0]) < minX && Math.abs(y - p[1]) < minY;
+    });
+  },
+
   bindLayoutDrag() {
     this.layoutItems.forEach(el => {
       el.addEventListener('pointerdown', e => {
@@ -807,15 +865,19 @@ const TouchControls = {
           ev.preventDefault();
           const x = (ev.clientX - offsetX - rect.left) / Math.max(1, rect.width) * 100;
           const y = (ev.clientY - offsetY - rect.top) / Math.max(1, rect.height) * 100;
-          this.layout[key] = [
-            Math.round(U.clamp(x, 3, 97) * 100) / 100,
-            Math.round(U.clamp(y, 4, 96) * 100) / 100
-          ];
+          const nx = Math.round(U.clamp(x, 3, 97) * 100) / 100;
+          const ny = Math.round(U.clamp(y, 4, 96) * 100) / 100;
+          if (this.layoutCollides(key, nx, ny)) {
+            el.classList.add('blocked');
+            return;
+          }
+          el.classList.remove('blocked');
+          this.layout[key] = [nx, ny];
           this.applyLayout(this.layout);
         };
         const finish = ev => {
           if (ev.pointerId !== e.pointerId) return;
-          el.classList.remove('dragging');
+          el.classList.remove('dragging', 'blocked');
           el.removeEventListener('pointermove', move);
           el.removeEventListener('pointerup', finish);
           el.removeEventListener('pointercancel', finish);
@@ -880,12 +942,16 @@ const TouchControls = {
       btn.dataset.cd = skill.cd;
       const glyph = btn.querySelector('.tb-glyph');
       if (glyph) glyph.textContent = skill.glyph;
+      const nameEl = btn.querySelector('.tb-name');
+      if (nameEl) nameEl.textContent = skill.name;
       btn.setAttribute('aria-label', `${skill.key} ${skill.name}`);
     });
     if (this.ultBtn && data.ult) {
       this.ultBtn.style.setProperty('--tb-color', data.ult.color || data.color2);
       const glyph = this.ultBtn.querySelector('.tb-glyph');
       if (glyph) glyph.textContent = data.ult.glyph || '终';
+      const ultName = this.ultBtn.querySelector('.tb-name');
+      if (ultName) ultName.textContent = data.ult.name;
       this.ultBtn.setAttribute('aria-label', `L ${data.ult.name}`);
     }
     this.sig = '';
@@ -977,6 +1043,7 @@ const Game = {
   buffSig2: '',
   lastHitSound: 0,
   resultShown: false,
+  letTrade: false,
   training: false,
   trainingSparring: false,
   trainingAttackTimer: 2.2,
@@ -984,6 +1051,9 @@ const Game = {
   trainingSignature: '',
   installPrompt: null,
   orientationPaused: false,
+  accumulator: 0,
+  fixedStep: 1 / 60,
+  maxSteps: 12,
 
   init() {
     this.canvas = $('gameCanvas');
@@ -1006,7 +1076,11 @@ const Game = {
     this.armMusic();
     this.initInstall();
     this.updateOrientation();
-    window.addEventListener('orientationchange', () => setTimeout(() => this.updateOrientation(), 180));
+    window.addEventListener('orientationchange', () => {
+      TouchControls.releaseAll();
+      this.accumulator = 0;
+      setTimeout(() => this.updateOrientation(), 180);
+    });
     window.addEventListener('resize', () => this.updateOrientation());
     document.addEventListener('fullscreenchange', () => this.updateOrientation());
     this.loop = this.loop.bind(this);
@@ -1038,7 +1112,9 @@ const Game = {
       if (btn) btn.hidden = false;
     }
     if ('serviceWorker' in navigator && navigator.serviceWorker && /^https?:$/.test(location.protocol)) {
-      navigator.serviceWorker.register('./sw.js').catch(() => { /* 离线能力不可用时不影响游戏 */ });
+      navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+        .then(reg => { if (reg && reg.update) reg.update(); })
+        .catch(() => { /* 离线能力不可用时不影响游戏 */ });
     }
   },
 
@@ -1251,6 +1327,9 @@ const Game = {
     this.trainingDummyResetTimer = 0;
     this.trainingTasks = { combo: false, skill: false, ult: false, defense: false };
     this.trainingSignature = '';
+    this.accumulator = 0;
+    this.hudAccum = 0;
+    this.letTrade = false;
 
     $('menuScreen').style.display = 'none';
     $('gameScreen').hidden = false;
@@ -1378,8 +1457,11 @@ const Game = {
       this.enemy.hitstun = Math.max(this.enemy.hitstun, .12);
       if (this.trainingDummyResetTimer <= 0) this.restoreTrainingDummy();
     }
-    // 训练场里冷却恢复更快，充能也会缓慢自动回复，方便连续试技能。
-    p.energy = Math.min(100, p.energy + 8 * dt);
+    // 训练场里冷却恢复更快；充能只在脱战 1 秒后缓慢回复，
+    // 避免命中充能与自动回复在同一段时间里重复累计。
+    if (this.worldTime - (p.stats.lastHitTime || -10) > 1) {
+      p.energy = Math.min(100, p.energy + 8 * dt);
+    }
     p.cooldowns = p.cooldowns.map(cd => Math.max(0, cd - dt * 1.2));
     if (this.trainingSparring) {
       this.trainingAttackTimer -= dt;
@@ -1564,16 +1646,33 @@ const Game = {
   },
 
   loop(now) {
-    const dt = Math.min(0.045, Math.max(0.001, (now - this.lastTime || 16) / 1000));
+    const elapsed = this.lastTime ? (now - this.lastTime) / 1000 : 1 / 60;
     this.lastTime = now;
+    // 低帧率时用固定步长补帧：世界按真实时间推进，不会因为掉帧变成慢动作。
+    const dt = U.clamp(elapsed, 0, 0.2);
+    let steps = 0;
 
     if (this.state === 'menu') {
       Menu.tickPreview(dt);
     } else if (this.state === 'playing' || this.state === 'intro' || this.state === 'ending') {
-      this.update(dt);
-      this.render();
+      this.accumulator += dt;
+      while (this.accumulator >= this.fixedStep && steps < this.maxSteps) {
+        this.update(this.fixedStep);
+        this.accumulator -= this.fixedStep;
+        steps++;
+        if (this.state === 'paused' || this.state === 'over') {
+          this.accumulator = 0;
+          break;
+        }
+      }
+      // 极端卡顿时丢弃余量，避免一次补太多帧造成雪崩。
+      if (steps >= this.maxSteps) this.accumulator = 0;
+      if (steps > 0) this.render();
     }
-    Input.clear();
+    // 120Hz 屏幕上有时一帧不推进逻辑；此时保留按键，避免输入被吞。
+    if (this.state === 'menu' || this.state === 'paused' || this.state === 'over' || steps > 0) {
+      Input.clear();
+    }
     requestAnimationFrame(this.loop);
   },
 
@@ -1618,6 +1717,8 @@ const Game = {
 
     if (this.hitstop > 0) {
       this.hitstop -= dt;
+      // 顿帧期间仍接收输入，避免按键被下一帧的 Input.clear 吞掉。
+      this.player.bufferIntent(this.getPlayerIntent());
       this.updateParticles(dt * .18);
       this.updateFloaters(dt * .35);
       this.updateHUD(dt);
@@ -1628,6 +1729,8 @@ const Game = {
     const p2Intent = this.training ? emptyIntent() : this.enemy.ai.think(dt, this.player);
     this.player.update(dt, this.enemy, p1Intent);
     this.enemy.update(dt, this.player, this.player.dead ? emptyIntent() : p2Intent);
+    // 允许同一帧后手反击形成双 KO；之后关闭交易窗口。
+    this.letTrade = false;
     if (this.training) this.updateTraining(dt);
     // 双方身体不互相推挤：角色可以自由穿过对手，避免被卡住身位。
 
@@ -1739,11 +1842,26 @@ const Game = {
 
   onKO(loser, winner) {
     if (this.training) return;
+    // 同帧互击：第一个人倒下后，另一个人仍可能在同一帧被击倒。
+    if (this.state === 'ending') {
+      if (this.player.dead && this.enemy.dead) {
+        this.endWinner = 'draw';
+        this.endReason = 'DOUBLE KO';
+        this.endTimer = 1.9;
+        this.showAnnounce('DOUBLE K.O.', 'DOUBLE KNOCK OUT', '同帧倒下 · 平局', 'ko', 1.9);
+        this.flash('#ffd36b', .28);
+        this.shake = Math.max(this.shake, 18);
+        this.hitVignette = .8;
+        this.updateHUD(0);
+      }
+      return;
+    }
     if (this.state !== 'playing' && this.state !== 'intro') return;
     this.endReason = 'KO';
     this.endWinner = winner;
     this.endTimer = 1.8;
     this.state = 'ending';
+    this.letTrade = true;
     TouchControls.setEnabled(false);
     this.showAnnounce('K.O.', 'KNOCK OUT', loser.side === 'player' ? '你被击倒了' : '对手被击倒', 'ko', 1.8);
     this.flash('#ff5a65', .32);
@@ -1771,12 +1889,14 @@ const Game = {
     $('resultTitle').textContent = title;
     $('resultBadge').textContent = win === 'player' ? 'VICTORY' : (win === 'enemy' ? 'DEFEAT' : 'DRAW');
     $('resultSub').textContent = win === 'player'
-      ? (this.endReason === 'KO' ? '漂亮的终结。对手倒在了你的连击之下。' : '时间耗尽，你以更高的剩余生命赢得判定。')
+      ? (this.endReason.includes('KO') ? '漂亮的终结。对手倒在了你的连击之下。' : '时间耗尽，你以更高的剩余生命赢得判定。')
       : win === 'enemy'
-        ? (this.endReason === 'KO' ? '战斗还没有结束。调整战术，再来一局。' : '时间耗尽，对手的生命值更高。')
-        : '双方战至最后，未能分出胜负。';
-    $('resultReason').textContent = this.endReason === 'KO' ? 'K.O.' : '判定';
-    $('resultKicker').textContent = this.endReason === 'KO' ? 'MATCH COMPLETE / KNOCKOUT' : 'MATCH COMPLETE / JUDGEMENT';
+        ? (this.endReason.includes('KO') ? '战斗还没有结束。调整战术，再来一局。' : '时间耗尽，对手的生命值更高。')
+        : (this.endReason === 'DOUBLE KO' ? '双方在同一帧倒下，谁也没有退让。' : '双方战至最后，未能分出胜负。');
+    $('resultReason').textContent = this.endReason === 'DOUBLE KO' ? 'DOUBLE K.O.' : (this.endReason.includes('KO') ? 'K.O.' : '判定');
+    $('resultKicker').textContent = this.endReason === 'DOUBLE KO'
+      ? 'MATCH COMPLETE / DOUBLE KNOCKOUT'
+      : (this.endReason.includes('KO') ? 'MATCH COMPLETE / KNOCKOUT' : 'MATCH COMPLETE / JUDGEMENT');
     $('resultTime').textContent = U.formatTime(GAME_RULES.duration - this.timeLeft);
     $('rsP1Name').textContent = p.data.name;
     $('rsP2Name').textContent = e.data.name;
@@ -1810,7 +1930,7 @@ const Game = {
   closeTouchLayout(save = false) {
     if (!$('layoutOverlay') || $('layoutOverlay').hidden) return;
     if (save) {
-      TouchControls.saveLayout();
+      if (!TouchControls.saveLayout()) return;
       this.toast('键位布局已保存', '#ffc27e', 1.4);
     } else {
       TouchControls.cancelLayoutEdit();
@@ -1858,7 +1978,8 @@ const Game = {
   /* ---------------- 伤害与能量 ---------------- */
 
   dealDamage(attacker, target, amount, opts = {}) {
-    if (!attacker || !target || target.dead || this.state !== 'playing') return false;
+    const tradeAllowed = this.state === 'ending' && this.letTrade && !target.dead;
+    if (!attacker || !target || target.dead || (this.state !== 'playing' && !tradeAllowed)) return false;
     if (target.invuln > 0 && !opts.ignoreInvuln) {
       if (this.training && this.trainingSparring && target === this.player && this.trainingTasks) {
         this.trainingTasks.defense = true;
@@ -1883,11 +2004,16 @@ const Game = {
       target.guardBreak <= 0 &&
       dir * targetFacing < 0;
 
+    // 反击：在对手出招的前摇/后摇中命中，伤害更高、硬直更长。
+    const trainingDummy = this.training && target === this.enemy;
+    const counter = !blocked && opts.type !== 'dot' && !trainingDummy &&
+      !!target.action && target.action.type !== 'ult' &&
+      target.action.time < target.action.duration - .04;
+    if (counter) incoming *= 1.14;
+
     let damage = incoming;
     if (blocked) damage *= GAME_RULES.blockDamage;
     damage = Math.max(1, Math.round(damage));
-
-    const trainingDummy = this.training && target === this.enemy;
     const trainingPlayer = this.training && target === this.player;
     target.hp = Math.max(0, target.hp - damage);
     // 训练木桩可以正常打到 0 血，击破后短暂停顿再自动回满，避免出现“锁血”的假象。
@@ -1944,10 +2070,12 @@ const Game = {
     }
 
     if (opts.type !== 'dot') {
+      if (!blocked && attacker.action) attacker.action.hitConfirmed = true;
       const armor = target.action && (target.action.opts.superArmor || target.action.opts.armor);
       if (blocked) {
         if (target.guardBreak <= 0) {
-          target.hitstun = Math.max(target.hitstun, .08);
+          target.blockStun = Math.max(target.blockStun, opts.heavy ? .28 : .16);
+          target.hitstun = 0;
           target.vx = dir * 55;
         }
       } else if (trainingDummy) {
@@ -2000,6 +2128,11 @@ const Game = {
           opts.color || '#fff', opts.heavy ? 34 : (opts.type === 'dot' ? 14 : 23),
           opts.type === 'dot'
         );
+        if (counter) {
+          target.hitstun += .08;
+          this.floatText(target.x, target.y - 170, 'COUNTER', '#ffd36b', 15, true);
+          this.shake = Math.max(this.shake, 7);
+        }
         if (this.worldTime - this.lastHitSound > .035) {
           this.lastHitSound = this.worldTime;
           GameAudio.hit(!!opts.heavy);
@@ -2288,7 +2421,23 @@ const Game = {
         size: U.rand(1.2, 2.8), color, shape, alpha: U.rand(.5, 1)
       });
     }
-    if (this.particles.length > 760) this.particles.splice(0, this.particles.length - 760);
+    const cap = document.body.classList.contains('touch-device') ? 320 : 520;
+    if (this.particles.length > cap) this.particles.splice(0, this.particles.length - cap);
+  },
+
+  landing(f, impact = 600) {
+    const heavy = impact > 760;
+    this.dust(f.x, WORLD.ground, '#d7e5e8', heavy ? 12 : 7, heavy ? 220 : 150);
+    this.addEffect({
+      type: 'ring', x: f.x, y: WORLD.ground - 8, radius: heavy ? 58 : 40,
+      color: f.data ? f.data.color2 : '#d7e5e8', life: .3, maxLife: .3, lineWidth: heavy ? 3 : 2
+    });
+    if (heavy) {
+      this.shakeBy(4.5);
+      GameAudio.land(true);
+    } else {
+      GameAudio.land(false);
+    }
   },
 
   dust(x, y, color, count, power = 130) {
@@ -2407,10 +2556,17 @@ const Game = {
 
   updateHUD(dt) {
     if (!this.player) return;
+    // UI 不必跟逻辑同频：手机降到约 13Hz，桌面约 30Hz，减少 DOM 写入。
+    this.hudAccum = (this.hudAccum || 0) + Math.max(0, dt);
+    const touchUi = document.body.classList.contains('touch-device');
+    const interval = touchUi ? .075 : .033;
+    if (dt > 0 && this.hudAccum < interval) return;
+    const hudDt = Math.max(this.hudAccum, .001);
+    this.hudAccum = 0;
     const p = this.player, e = this.enemy;
     const p1 = p.hp / p.maxHp, p2 = e.hp / e.maxHp;
-    this.hudLag1 = Math.max(p.hp, this.hudLag1 - p.maxHp * .55 * Math.max(dt, .001));
-    this.hudLag2 = Math.max(e.hp, this.hudLag2 - e.maxHp * .55 * Math.max(dt, .001));
+    this.hudLag1 = Math.max(p.hp, this.hudLag1 - p.maxHp * .55 * hudDt);
+    this.hudLag2 = Math.max(e.hp, this.hudLag2 - e.maxHp * .55 * hudDt);
 
     $('p1HpFill').style.width = (p1 * 100).toFixed(2) + '%';
     $('p2HpFill').style.width = (p2 * 100).toFixed(2) + '%';
@@ -2564,7 +2720,7 @@ const Game = {
     const sh = this.shakeNow();
     ctx.save();
     ctx.translate(sh.x, sh.y);
-    Render.drawMap(ctx, this.config.map, this.worldTime);
+    Render.drawMapCached(ctx, this.config.map, this.worldTime);
 
     for (const z of this.zones) {
       Render.drawZone(ctx, z, this.worldTime);
@@ -2572,6 +2728,26 @@ const Game = {
 
     Render.drawShadow(ctx, this.player);
     Render.drawShadow(ctx, this.enemy);
+
+    // 冲刺残影：只画骨架幽灵，不参与碰撞或伤害。
+    [this.player, this.enemy].forEach(f => {
+      if (!f.dodgeTime || f.dead) return;
+      for (let i = 3; i >= 1; i--) {
+        const ghost = Object.assign({}, f, {
+          x: f.x - f.dodgeDir * i * 20,
+          action: null,
+          hitFlash: 0,
+          hurtTimer: 0,
+          energy: 0,
+          statuses: [],
+          dodgeTime: 0
+        });
+        ctx.save();
+        ctx.globalAlpha = .16 - i * .028;
+        Render.drawFighter(ctx, ghost, this.worldTime - i * .035);
+        ctx.restore();
+      }
+    });
 
     [this.player, this.enemy].forEach(f => {
       Render.drawFighter(ctx, f, this.worldTime);

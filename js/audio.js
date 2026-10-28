@@ -388,6 +388,18 @@ const GameAudio = (() => {
       init();
       noise(0.18, { freq: 900, endFreq: 280, volume: 0.12, q: 0.6 });
     },
+    land(heavy = false) {
+      init();
+      noise(heavy ? 0.2 : 0.1, {
+        freq: heavy ? 260 : 420,
+        endFreq: 90,
+        volume: heavy ? 0.14 : 0.07,
+        q: 0.7
+      });
+      tone(heavy ? 72 : 104, heavy ? 0.16 : 0.08, {
+        type: 'sine', volume: heavy ? 0.09 : 0.04, endFreq: 44
+      });
+    },
     guard() {
       init();
       tone(420, 0.08, { type: 'triangle', volume: 0.035, endFreq: 620 });

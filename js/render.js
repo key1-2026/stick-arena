@@ -741,6 +741,32 @@ const Render = (() => {
     ctx.stroke();
   }
 
+  let sceneBuffer = null;
+  let sceneBufferKey = '';
+  let sceneBufferTime = -1;
+
+  function drawMapCached(ctx, key, t) {
+    if (typeof document === 'undefined' || !document.createElement) {
+      drawMap(ctx, key, t);
+      return;
+    }
+    if (!sceneBuffer) {
+      sceneBuffer = document.createElement('canvas');
+      sceneBuffer.width = W;
+      sceneBuffer.height = H;
+    }
+    const interval = document.body && document.body.classList.contains('touch-device') ? .085 : .05;
+    if (key !== sceneBufferKey || t < sceneBufferTime || t - sceneBufferTime >= interval) {
+      const bctx = sceneBuffer.getContext('2d');
+      bctx.setTransform(1, 0, 0, 1, 0, 0);
+      bctx.clearRect(0, 0, W, H);
+      drawMap(bctx, key, t);
+      sceneBufferKey = key;
+      sceneBufferTime = t;
+    }
+    ctx.drawImage(sceneBuffer, 0, 0, W, H);
+  }
+
   function drawMap(ctx, key, t) {
     ctx.save();
     if (key === 'bamboo') drawBamboo(ctx, t);
@@ -2002,12 +2028,36 @@ const Render = (() => {
       ctx.restore();
     });
 
-    // 受击白闪
+    // 受击白闪：沿骨架描白，不再用矩形填色（旧写法会把背景也染成白块）。
     if (f.hitFlash > 0) {
-      ctx.globalCompositeOperation = 'source-atop';
-      ctx.globalAlpha = clamp(f.hitFlash * 3.5, 0, 0.75);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = clamp(f.hitFlash * 4.2, 0, 0.85);
+      ctx.strokeStyle = '#fff';
       ctx.fillStyle = '#fff';
-      ctx.fillRect(-90, -190, 180, 200);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.shadowColor = '#fff';
+      ctx.shadowBlur = 16;
+      const bones = [
+        [pose.hip, pose.neck],
+        [pose.hip, pose.kneeF], [pose.kneeF, pose.footF],
+        [pose.hip, pose.kneeB], [pose.kneeB, pose.footB],
+        [pose.shoulderF, pose.elbowF], [pose.elbowF, pose.handF],
+        [pose.shoulderB, pose.elbowB], [pose.elbowB, pose.handB]
+      ];
+      bones.forEach(([a, b], i) => {
+        ctx.lineWidth = i === 0 ? 13 : 8;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      });
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(pose.head.x, pose.head.y, 16, 0, TAU);
+      ctx.stroke();
+      ctx.restore();
     }
 
     ctx.restore();
@@ -2580,7 +2630,7 @@ const Render = (() => {
 
   return {
     W, H, GROUND, TAU, clamp, lerp, easeOut, easeInOut, rng,
-    drawMap, drawFighter, drawShadow, drawProjectile, drawProjectileTrail,
+    drawMap, drawMapCached, drawFighter, drawShadow, drawProjectile, drawProjectileTrail,
     drawZone, drawEffect, drawParticle, drawMenuFx, drawAvatar, shade,
     drawFigurePreview(ctx, key, x, y, facing, t) {
       const dummy = {
