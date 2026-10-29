@@ -275,7 +275,11 @@ class Fighter {
   jump() {
     if (this.jumpsLeft <= 0 || this.dead) return false;
     const first = this.jumpsLeft === 2;
-    this.vy = -(first ? this.data.jump : this.data.doubleJump);
+    const configuredSpeed = first ? this.data.jump : this.data.doubleJump;
+    // 新角色漏填跳跃参数时仍保持有效坐标，避免 NaN 污染物理和渲染。
+    const fallbackSpeed = Number.isFinite(this.data.jump) && this.data.jump > 0 ? this.data.jump : 900;
+    const jumpSpeed = Number.isFinite(configuredSpeed) && configuredSpeed > 0 ? configuredSpeed : fallbackSpeed * (first ? 1 : .85);
+    this.vy = -jumpSpeed;
     this.onGround = false;
     this.jumpsLeft--;
     if (first) {
@@ -566,9 +570,11 @@ class Fighter {
     if (!a || a.type !== 'basic' || !a.basicData.range || this.dead ||
         a.time + 1e-8 < a.startup || a.time >= a.activeEnd) return;
     const b = a.basicData;
-    this.meleeStrike(b.range, b.height || 150, b.dmg, {
-      kb: b.kb, stun: b.stun, blockstun: b.blockstun, launch: b.launch || 0,
-      heavy: !!b.heavy, type: 'basic', color: this.data.color, activePass: true
+    const mech = this.key === 'chilin' && this.stance === 'mech';
+    this.meleeStrike(b.range + (mech ? 8 : 0), b.height || 150, mech ? Math.round(b.dmg * 1.18) : b.dmg, {
+      kb: b.kb + (mech ? 30 : 0), stun: b.stun + (mech ? .02 : 0), blockstun: b.blockstun, launch: b.launch || 0,
+      heavy: !!b.heavy, type: 'basic', color: this.data.color, activePass: true,
+      onConfirmedHit: a.resonanceConfirm
     }, opp);
   }
 
@@ -623,7 +629,8 @@ class Fighter {
       startup: opts.basicData ? opts.basicData.hitAt : Math.min(duration * .28, .15),
       activeEnd: opts.basicData ? opts.basicData.activeEnd : duration * .7,
       recoveryAt: opts.basicData ? opts.basicData.activeEnd : duration * .7,
-      basicData: opts.basicData || null, hitTargets: new Set(), rootProgress: 0
+      basicData: opts.basicData || null, resonanceConfirm: opts.resonanceConfirm || null,
+      hitTargets: new Set(), rootProgress: 0
     };
     this.blocking = false;
     this.queuedBasic = 0;
@@ -642,10 +649,13 @@ class Fighter {
     this.facing = opp.x >= this.x ? 1 : -1;
     const b = this.data.basic[idx];
     const heavy = !!b.heavy;
+    // 主动判定可能先于 hitAt 事件命中；共鸣确认必须在建动作时就绑定，不能等事件里再挂。
+    const resonanceConfirm = this.data.key === 'senmen' && heavy
+      ? this.resonanceConfirmation(opp) : undefined;
     this.beginAction('basic', 'basic' + idx, b.duration, [{
       t: b.hitAt,
       fn: () => this.performBasic(idx, b, opp)
-    }], { drag: 22, rootMotion: b.rootMotion, basicData: b });
+    }], { drag: 22, rootMotion: b.rootMotion, basicData: b, resonanceConfirm });
   }
 
   performBasic(idx, b, opp) {
@@ -767,9 +777,20 @@ class Fighter {
         });
       } else if (d.key === 'senmen') {
         GameAudio.dagger();
-        const hit = this.meleeStrike(b.range, b.height || 140, b.dmg, {
+        const confirm = (this.action && this.action.resonanceConfirm) ||
+          (heavy ? this.resonanceConfirmation(opp) : undefined);
+        if (this.action) this.action.resonanceConfirm = confirm;
+        if (heavy) {
+          // 第三段把傀儡甩向对手一侧；否则傀儡总在身后，128 的判定够不到正面目标。
+          const side = opp.x >= this.x ? 1 : -1;
+          if (this.puppetLock <= 0 && Math.abs(opp.x - this.x) < 230) {
+            this.puppetLunge = side * 130;
+            this.puppetX = U.clamp(opp.x - side * 62, WORLD.left + 20, WORLD.right - 20);
+          }
+        }
+        this.meleeStrike(b.range, b.height || 140, b.dmg, {
           kb: b.kb, stun: b.stun, launch: b.launch || 0, heavy,
-          type: 'basic', color: d.color
+          type: 'basic', color: d.color, onConfirmedHit: confirm
         }, opp);
         Game.addEffect({
           type: 'slash', x: this.x + this.facing * b.range * .46, y: this.y - 86,
@@ -777,10 +798,9 @@ class Fighter {
           angle: this.facing > 0 ? -.7 : Math.PI - .7, heavy, life: .14, maxLife: .14
         });
         if (heavy) {
-          const puppetHit = this.puppetStrike(128, 150, Math.round(b.dmg * .8), {
-            kb: 210, stun: .3, heavy: true, color: d.color2
+          this.puppetStrike(128, 150, Math.round(b.dmg * .8), {
+            kb: 210, stun: .3, heavy: true, color: d.color2, onConfirmedHit: confirm
           }, opp);
-          if (hit && puppetHit) this.triggerResonance(opp);
         }
       } else if (d.key === 'genbu') {
         GameAudio.hammer(heavy);
@@ -926,6 +946,15 @@ class Fighter {
     this.x = oldX;
     this.facing = oldFacing;
     return hit;
+  }
+
+  resonanceConfirmation(opp) {
+    let confirmedHits = 0;
+    // 批量伤害结算后，由本体和傀儡各自的真实命中确认共鸣。
+    // 格挡、无敌和已归零的木桩都不会误触发僵直。
+    return () => {
+      if (++confirmedHits === 2) this.triggerResonance(opp);
+    };
   }
 
   triggerResonance(opp) {
@@ -1816,17 +1845,17 @@ class Fighter {
           { t: .06, fn: () => GameAudio.dagger() },
           {
             t: .17, fn: () => {
-              const playerHit = this.meleeStrike(116, 148, 42, {
-                kb: 70, stun: .2, type: 'skill', color: d.color
+              const confirm = this.resonanceConfirmation(opp);
+              this.meleeStrike(116, 148, 42, {
+                kb: 70, stun: .2, type: 'skill', color: d.color, onConfirmedHit: confirm
               }, opp);
               this.puppetLock = 0;
               this.puppetLunge = dir * 145;
               this.puppetX = U.clamp(this.x + dir * 175, WORLD.left + 20, WORLD.right - 20);
-              const puppetHit = this.puppetStrike(178, 165, 66, {
-                kb: 210, stun: .3, heavy: true, color: d.color2
+              this.puppetStrike(178, 165, 66, {
+                kb: 210, stun: .3, heavy: true, color: d.color2, onConfirmedHit: confirm
               }, opp);
               this.resonanceTimer = .42;
-              if (playerHit && puppetHit) this.triggerResonance(opp);
               Game.addEffect({
                 type: 'slash', x: this.puppetX, y: this.y - 100,
                 radius: 92, color: d.color2, face: dir,
@@ -2510,11 +2539,12 @@ class Fighter {
           t: .26 + i * .18,
           fn: () => {
             this.facing = opp.x >= this.x ? 1 : -1;
-            const playerHit = this.meleeStrike(128, 152, 26, {
-              kb: 40, stun: .16, type: 'ult', color: d.color
+            const confirm = i === 4 ? this.resonanceConfirmation(opp) : undefined;
+            this.meleeStrike(128, 152, 26, {
+              kb: 40, stun: .16, type: 'ult', color: d.color, onConfirmedHit: confirm
             }, opp);
-            const puppetHit = this.puppetStrike(186, 172, 32, {
-              kb: 55, stun: .18, type: 'ult', color: d.color2
+            this.puppetStrike(186, 172, 32, {
+              kb: 55, stun: .18, type: 'ult', color: d.color2, onConfirmedHit: confirm
             }, opp);
             GameAudio.dagger();
             Game.addEffect({
@@ -2523,20 +2553,19 @@ class Fighter {
               face: this.facing, angle: this.facing > 0 ? -.55 : Math.PI - .55,
               heavy: false, life: .12, maxLife: .12
             });
-            if (i === 4 && playerHit && puppetHit) this.triggerResonance(opp);
             Game.shakeBy(4);
           }
         })),
         {
           t: 1.3, fn: () => {
             this.facing = opp.x >= this.x ? 1 : -1;
-            const playerHit = this.meleeStrike(200, 205, 92, {
-              kb: 420, stun: .55, launch: 300, heavy: true, type: 'ult', color: d.color2
+            const confirm = this.resonanceConfirmation(opp);
+            this.meleeStrike(200, 205, 92, {
+              kb: 420, stun: .55, launch: 300, heavy: true, type: 'ult', color: d.color2, onConfirmedHit: confirm
             }, opp);
-            const puppetHit = this.puppetStrike(210, 205, 96, {
-              kb: 420, stun: .55, launch: 300, heavy: true, color: d.color2
+            this.puppetStrike(210, 205, 96, {
+              kb: 420, stun: .55, launch: 300, heavy: true, type: 'ult', color: d.color2, onConfirmedHit: confirm
             }, opp);
-            if (playerHit && puppetHit) this.triggerResonance(opp);
             Game.flash(d.color2, .3);
             Game.shakeBy(20);
           }

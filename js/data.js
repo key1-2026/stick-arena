@@ -524,6 +524,7 @@ const CHARACTERS = {
     hp: 870,
     speed: 342,
     jump: 952,
+    doubleJump: 820,
     weight: 0.84,
     desc: '一场大火毁去容颜的皮影名伶。本体轻盈诡诈，巨型傀儡则负责把对手撕碎。',
     difficulty: '诡变',

@@ -1827,8 +1827,7 @@ const Game = {
   resolvePushboxes() {
     const p = this.player, e = this.enemy;
     if (!p || !e || p.dead || e.dead || !p.onGround || !e.onGround || p.dodgeTime > 0 || e.dodgeTime > 0) return;
-    // 移动中不阻挡换边：贴身时只做轻微分离，避免玩家被对手身位卡住。
-    if (Math.abs(p.vx) > 12 || Math.abs(e.vx) > 12) return;
+    // 普通地面移动保持身位；跳跃、闪避和跨过身位的瞬移仍可换边。
     const dx = e.x - p.x;
     const overlap = COMBAT.pushboxWidth - Math.abs(dx);
     if (overlap <= 0) return;
@@ -2277,6 +2276,9 @@ const Game = {
       const winner = target === this.player ? 'enemy' : 'player';
       this.onKO(target, winner);
     }
+    if (!blocked && opts.type !== 'dot' && actualDamage > 0 && target.hp > 0 && opts.onConfirmedHit) {
+      opts.onConfirmedHit();
+    }
     return true;
   },
 
@@ -2307,6 +2309,7 @@ const Game = {
 
   updateProjectiles(dt) {
     const targetFor = p => p.owner === this.player ? this.enemy : this.player;
+    const starGates = this.zones.filter(z => z.type === 'starGate' && z.life > 0);
     for (const p of this.projectiles) {
       if (p.dead) continue;
       p.age += dt;
@@ -2328,10 +2331,18 @@ const Game = {
 
       if (p.x < -200 || p.x > 1800 || p.y < -600 || p.y > 1000) { p.dead = true; continue; }
 
+      const target = targetFor(p);
+      const fraction = target && !target.dead ? U.sweptRect(fromX, fromY, p.x, p.y, target.hurtbox, p.radius) : null;
       // 星轨结界：敌方飞行道具被拦截，己方星屑穿过时发生折射。
-      for (const z of this.zones) {
-        if (z.type !== 'starGate' || z.life <= 0) continue;
-        if (Math.abs(p.x - z.x) > z.radius * .72 || p.y < WORLD.ground - 238) continue;
+      // 沿本帧运动路径检查，按接触先后处理，防止高速弹丸穿过结界。
+      const gates = [];
+      for (const z of starGates) {
+        const contact = U.sweptRect(fromX, fromY, p.x, p.y,
+          { x: z.x - z.radius * .72, y: WORLD.ground - 238, w: z.radius * 1.44, h: 238 }, p.radius);
+        if (contact !== null && (fraction === null || contact <= fraction)) gates.push({ z, contact });
+      }
+      if (gates.length > 1) gates.sort((a, b) => a.contact - b.contact);
+      for (const {z, contact} of gates) {
         if (p.owner === z.owner) {
           if (!p.refracted && p.kind !== 'meteor' && p.attackType !== 'ult' &&
               ['star', 'orb', 'bigOrb', 'arrow', 'dagger'].includes(p.kind)) {
@@ -2349,6 +2360,8 @@ const Game = {
           }
         } else {
           p.dead = true;
+          p.x = U.lerp(fromX, p.x, contact);
+          p.y = U.lerp(fromY, p.y, contact);
           this.addEffect({
             type: 'burst', x: p.x, y: p.y, radius: 42,
             color: z.color, seed: 1.2, life: .24, maxLife: .24
@@ -2359,8 +2372,6 @@ const Game = {
       }
       if (p.dead) continue;
 
-      const target = targetFor(p);
-      const fraction = target && !target.dead ? U.sweptRect(fromX, fromY, p.x, p.y, target.hurtbox, p.radius) : null;
       const dodged = fraction !== null && target.invuln > 0;
       if (dodged && this.training && target === this.player && this.trainingTasks) this.trainingTasks.defense = true;
       const hitTarget = fraction !== null && !dodged;
