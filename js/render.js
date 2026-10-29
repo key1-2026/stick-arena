@@ -2624,7 +2624,7 @@ const Render = (() => {
       ctx.beginPath();
       for (let i = 0; i < 9; i++) {
         const ang = i / 9 * TAU;
-        const rr = r * (0.75 + 0.25 * Math.sin(i * 4.1 + p.seed));
+        const rr = r * (0.75 + 0.25 * Math.sin(i * 4.1 + (p.seed || 0)));
         const px = Math.cos(ang) * rr;
         const py = Math.sin(ang) * rr;
         if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);

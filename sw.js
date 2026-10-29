@@ -1,17 +1,17 @@
 /* STICK//ARENA — 安装版离线缓存 */
 const CACHE_PREFIX = 'stick-arena-';
-const CACHE = `${CACHE_PREFIX}v17`;
+const CACHE = `${CACHE_PREFIX}v18`;
 const CORE = [
   './',
   './index.html',
   './404.html',
   './manifest.webmanifest',
-  './css/ui.css?v=17',
-  './js/data.js?v=17',
-  './js/audio.js?v=17',
-  './js/render.js?v=17',
-  './js/entities.js?v=17',
-  './js/game.js?v=17',
+  './css/ui.css?v=18',
+  './js/data.js?v=18',
+  './js/audio.js?v=18',
+  './js/render.js?v=18',
+  './js/entities.js?v=18',
+  './js/game.js?v=18',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',

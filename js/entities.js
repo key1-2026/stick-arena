@@ -122,6 +122,7 @@ class Fighter {
     this.puppetY = this.y;
     this.puppetLunge = 0;
     this.puppetPulse = 0;
+    this.puppetLock = 0;
     this.muzzle = 0;
     this.slowMul = 1;
     this.dead = false;
@@ -195,6 +196,7 @@ class Fighter {
     this.puppetY = WORLD.ground;
     this.puppetLunge = 0;
     this.puppetPulse = 0;
+    this.puppetLock = 0;
     this.stats = { damage: 0, maxCombo: 0, combo: 0, lastHitTime: -10, skillHits: 0, ults: 0 };
     if (this.ai) this.ai.reset(this);
   }
@@ -449,10 +451,16 @@ class Fighter {
     for (let i = 0; i < 3; i++) this.cooldowns[i] = Math.max(0, this.cooldowns[i] - dt);
     if (this.key === 'senmen') {
       this.puppetY = this.y;
-      this.puppetLunge *= Math.exp(-5 * dt);
-      const puppetTarget = this.x - this.facing * 96 + this.facing * this.puppetLunge;
-      this.puppetX += (puppetTarget - this.puppetX) * (1 - Math.exp(-13 * dt));
       this.puppetPulse += dt;
+      if (this.puppetLock > 0) {
+        // 替身期间傀儡钉在原地，玩家可以拉开距离诱骗对手。
+        this.puppetLock = Math.max(0, this.puppetLock - dt);
+        this.puppetLunge = 0;
+      } else {
+        this.puppetLunge *= Math.exp(-5 * dt);
+        const puppetTarget = this.x - this.facing * 96 + this.facing * this.puppetLunge;
+        this.puppetX += (puppetTarget - this.puppetX) * (1 - Math.exp(-13 * dt));
+      }
     }
     this.updateStatuses(dt);
     const wasDodging = this.dodgeTime > 0;
@@ -867,7 +875,7 @@ class Fighter {
   spawnOrb(kind, o) {
     Game.spawnProjectile(Object.assign({
       owner: this, kind, gravity: 0, pierce: 1, hitOnce: true,
-      trail: [], trailTimer: 0, spin: 0, glow: U.hexA(this.data.color, .65)
+      trail: [], trailTimer: 0, spin: 0, seed: U.rand(0, 6), glow: U.hexA(this.data.color, .65)
     }, o));
   }
 
@@ -923,11 +931,17 @@ class Fighter {
   triggerResonance(opp) {
     if (!this.data || this.data.key !== 'senmen' || !opp || opp.dead) return;
     this.resonanceTimer = 0;
-    opp.hitstun = Math.max(opp.hitstun, .42);
-    opp.vx *= .35;
-    opp.action = null;
-    opp.queuedBasic = 0;
-    Game.floatText(opp.x, opp.y - 178, '共鸣 · 僵直', this.data.color2, 20);
+    const armored = opp.ironWall > 0 ||
+      !!(opp.action && opp.action.opts && (opp.action.opts.superArmor || opp.action.opts.armor));
+    if (!armored) {
+      opp.hitstun = Math.max(opp.hitstun, .42);
+      opp.vx *= .35;
+      opp.action = null;
+      opp.queuedBasic = 0;
+    } else {
+      opp.hitstun = Math.max(opp.hitstun, .06);
+    }
+    Game.floatText(opp.x, opp.y - 178, armored ? '共鸣 · 抵消' : '共鸣 · 僵直', this.data.color2, 20);
     Game.addEffect({
       type: 'ring', x: opp.x, y: opp.y - 82, radius: 74,
       color: this.data.color2, life: .32, maxLife: .32, lineWidth: 4
@@ -1585,11 +1599,11 @@ class Fighter {
           {
             t: .3, fn: () => {
               const close = Math.abs(opp.x - this.x) < 158 && opp.y > WORLD.ground - 230;
-              if (close && !opp.dead) {
-                Game.dealDamage(this, opp, 128, {
-                  kb: 240, stun: .86, launch: 390, heavy: true, type: 'skill',
-                  unblockable: true, color: d.color2, dir
-                });
+              const grabbed = close && !opp.dead && Game.dealDamage(this, opp, 128, {
+                kb: 240, stun: .86, launch: 390, heavy: true, type: 'skill',
+                unblockable: true, color: d.color2, dir
+              });
+              if (grabbed) {
                 Game.floatText(opp.x, opp.y - 170, '撼山抱', d.color2, 20);
                 Game.addEffect({
                   type: 'burst', x: this.x + dir * 58, y: this.y - 78, radius: 88,
@@ -1805,6 +1819,7 @@ class Fighter {
               const playerHit = this.meleeStrike(116, 148, 42, {
                 kb: 70, stun: .2, type: 'skill', color: d.color
               }, opp);
+              this.puppetLock = 0;
               this.puppetLunge = dir * 145;
               this.puppetX = U.clamp(this.x + dir * 175, WORLD.left + 20, WORLD.right - 20);
               const puppetHit = this.puppetStrike(178, 165, 66, {
@@ -1849,12 +1864,17 @@ class Fighter {
           {
             t: .18, fn: () => {
               this.decoyTimer = 4;
-              this.puppetX = this.x;
+              this.puppetLock = 4;
               this.puppetLunge = 0;
+              this.puppetX = U.clamp(this.x - this.facing * 84, WORLD.left + 20, WORLD.right - 20);
               this.addStatus('decoy', 4, { color: d.color2 });
               Game.addEffect({
                 type: 'ring', x: this.puppetX, y: this.y - 82, radius: 58,
                 color: d.color2, life: .45, maxLife: .45, lineWidth: 3
+              });
+              Game.addEffect({
+                type: 'burst', x: this.x, y: this.y - 86, radius: 74,
+                color: d.color, seed: 4.1, life: .3, maxLife: .3
               });
               Game.floatText(this.x, this.y - 186, '傀儡替身', d.color2, 20);
             }
@@ -2476,6 +2496,7 @@ class Fighter {
           t: .04, fn: () => {
             this.invuln = 1.45;
             this.vx = 0;
+            this.puppetLock = 0;
             this.puppetLunge = dir * 180;
             this.puppetX = U.clamp(opp.x + dir * 80, WORLD.left + 30, WORLD.right - 30);
             GameAudio.blink();
@@ -2509,13 +2530,13 @@ class Fighter {
         {
           t: 1.3, fn: () => {
             this.facing = opp.x >= this.x ? 1 : -1;
-            this.meleeStrike(200, 205, 92, {
+            const playerHit = this.meleeStrike(200, 205, 92, {
               kb: 420, stun: .55, launch: 300, heavy: true, type: 'ult', color: d.color2
             }, opp);
-            this.puppetStrike(210, 205, 96, {
+            const puppetHit = this.puppetStrike(210, 205, 96, {
               kb: 420, stun: .55, launch: 300, heavy: true, color: d.color2
             }, opp);
-            this.triggerResonance(opp);
+            if (playerHit && puppetHit) this.triggerResonance(opp);
             Game.flash(d.color2, .3);
             Game.shakeBy(20);
           }
@@ -2703,6 +2724,30 @@ class AIBrain {
           if (i === 1 && dist < 240) weight = 2.6;
           if (i === 2 && (dist < 180 || f.hp / f.maxHp < .6)) weight = 2.2;
           if (i === 0 && dist > 220) weight = 1.4;
+        } else if (f.key === 'arashi') {
+          if (i === 0 && f.windCharge >= 100) weight = 3.2;
+          if (i === 1 && dist < 210) weight = 2.4;
+          if (i === 2 && dist > 140 && dist < 330) weight = 2.1;
+        } else if (f.key === 'genbu') {
+          if (i === 0 && dist < 150) weight = 3;
+          if (i === 1 && f.hp / f.maxHp < .65) weight = 2.6;
+          if (i === 2 && dist < 250) weight = 2.2;
+        } else if (f.key === 'astra') {
+          if (i === 0 && dist > 180) weight = 1.7;
+          if (i === 1 && dist < 540) weight = 2.4;
+          if (i === 2) {
+            const hasGate = Game.zones.some(z => z.type === 'starGate' && z.owner === f);
+            weight = hasGate ? .45 : (dist < 260 ? 2.2 : 1.3);
+          }
+        } else if (f.key === 'chilin') {
+          if (i === 2) weight = f.overload >= 100 ? 2.8 : 1.1;
+          if (i === 0 && f.stance === 'mech' && dist > 220) weight = 2.2;
+          if (i === 0 && f.stance === 'blade' && dist < 230) weight = 2.4;
+          if (i === 1 && f.hp / f.maxHp < .6) weight = 1.8;
+        } else if (f.key === 'senmen') {
+          if (i === 0 && dist < 260) weight = 2.5;
+          if (i === 1 && (dist > 220 || f.hp / f.maxHp < .5)) weight = 2;
+          if (i === 2 && f.hp / f.maxHp < .62) weight = 2.6;
         }
         candidates.push({ i, weight });
       }

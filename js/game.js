@@ -97,6 +97,8 @@ const Menu = {
       btn.type = 'button';
       btn.className = 'character-card';
       btn.dataset.char = key;
+      btn.setAttribute('aria-label', c.name + ' · ' + c.title);
+      btn.setAttribute('aria-pressed', 'false');
       btn.style.setProperty('--char-color', c.color);
       btn.style.setProperty('--char-color2', c.color2);
       btn.style.setProperty('--char-glow', U.hexA(c.color, .18));
@@ -388,7 +390,9 @@ const Menu = {
     const opp = CHARACTERS[this.previewOpp];
 
     document.querySelectorAll('.character-card').forEach(el => {
-      el.classList.toggle('active', el.dataset.char === this.config.char);
+      const active = el.dataset.char === this.config.char;
+      el.classList.toggle('active', active);
+      el.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
     document.querySelectorAll('.map-card').forEach(el => {
       el.classList.toggle('active', el.dataset.map === this.config.map);
@@ -407,7 +411,7 @@ const Menu = {
     $('statList').innerHTML = [
       ['攻击', c.stats.atk], ['防御', c.stats.def], ['机动', c.stats.mob]
     ].map(([label, value]) => `
-      <div class="stat-row"><span>${label}</span><div class="stat-track"><i style="width:${value}%"></i></div><b>${value}</b></div>
+      <div class="stat-row"><span>${label}</span><div class="stat-track"><i style="width:${Math.min(100, value)}%"></i></div><b>${value}</b></div>
     `).join('');
     $('basicName').textContent = c.basicName;
     $('basicHint').textContent = c.basicHint;
@@ -2295,6 +2299,7 @@ const Game = {
     p.pierce = p.pierce === undefined ? 1 : p.pierce;
     p.trail = p.trail || [];
     p.trailTimer = p.trailTimer || 0;
+    p.seed = p.seed || U.rand(0, 6);
     p.age = 0;
     if (p.radius === undefined) p.radius = 10;
     this.projectiles.push(p);
@@ -2328,10 +2333,15 @@ const Game = {
         if (z.type !== 'starGate' || z.life <= 0) continue;
         if (Math.abs(p.x - z.x) > z.radius * .72 || p.y < WORLD.ground - 238) continue;
         if (p.owner === z.owner) {
-          if (!p.refracted) {
+          if (!p.refracted && p.kind !== 'meteor' && p.attackType !== 'ult' &&
+              ['star', 'orb', 'bigOrb', 'arrow', 'dagger'].includes(p.kind)) {
             p.refracted = true;
-            p.vx *= .82;
-            p.vy = -(p.vy || 0) - 190;
+            // 折射出第二发，而不是把原本的弹道抬到天上。
+            this.projectiles.push(Object.assign({}, p, {
+              x: p.x, y: p.y + 24, vy: (p.vy || 0) + 26,
+              damage: Math.max(1, Math.round((p.damage || 0) * .55)),
+              refracted: true, trail: [], trailTimer: 0, life: Math.max(.2, (p.life || 1) * .8)
+            }));
             this.addEffect({
               type: 'ring', x: z.x, y: p.y, radius: 38,
               color: z.color, life: .2, maxLife: .2, lineWidth: 3
@@ -2792,7 +2802,9 @@ const Game = {
       else if (s.type === 'slow') list.push({ label: '减速', color: '#79e7ff', time: s.time });
       else if (s.type === 'root') list.push({ label: '定身', color: '#8aff7a', time: s.time });
       else if (s.type === 'burn') list.push({ label: '灼烧', color: '#ff9a45', time: s.time });
-      else if (s.type === 'overclock') list.push({ label: '超频', color: '#ffc879', time: s.time });
+      else if (s.type === 'overclock' && !(f.key === 'chilin' && f.empowerTimer > 0)) {
+      list.push({ label: '超频', color: '#ffc879', time: s.time });
+    }
     });
     if (f.empowerTimer > 0) list.push({ label: '强化', color: '#ffd85e', time: f.empowerTimer });
     if (f.ironWall > 0) list.push({ label: '铁壁', color: f.data.color2, time: f.ironWall });
