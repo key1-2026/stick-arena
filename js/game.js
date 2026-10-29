@@ -103,7 +103,7 @@ const Menu = {
       btn.style.setProperty('--char-glow-soft', U.hexA(c.color, .08));
       btn.innerHTML = `
         <span class="cc-copy">
-          <span class="cc-index">0${i + 1} / FIGHTER</span>
+          <span class="cc-index">${String(i + 1).padStart(2, '0')} / FIGHTER</span>
           <span class="cc-name">${c.name}</span>
           <span class="cc-en">${c.en}</span>
           <span class="cc-role">${c.role}</span>
@@ -2072,9 +2072,12 @@ const Game = {
     if (opts.type !== 'dot') incoming *= Math.max(COMBAT.minimumDamageScale, 1 - COMBAT.comboScaleStep * (comboHits - 1));
     if (this.training && attacker === this.enemy) incoming *= .55;
     if (attacker.hasStatus('warBuff')) incoming *= 1.25;
+    if (attacker.key === 'chilin' && attacker.empowerTimer > 0) incoming *= 1.18;
     if (target.hasStatus('warBuff')) incoming *= .76;
     if (target.guardTimer > 0 || target.hasStatus('guard')) incoming *= .45;
     if (target.action && target.action.opts && target.action.opts.guard) incoming *= .5;
+    if (target.ironWall > 0 && opts.type !== 'dot') incoming *= .34;
+    if (target.decoyTimer > 0 && opts.type !== 'dot') incoming *= .4;
 
     const dir = opts.dir !== undefined ? opts.dir : (attacker.facing || 1);
     const targetFacing = target.facing || 1;
@@ -2119,6 +2122,22 @@ const Game = {
       if (target.hp > 0) target.addEnergy(actualDamage * GAME_RULES.energyTaken);
     }
     attacker.stats.damage += actualDamage;
+    if (!blocked && opts.type !== 'dot') {
+      if (attacker.key === 'arashi') {
+        attacker.windCharge = Math.min(100, (attacker.windCharge || 0) + (opts.type === 'ult' ? 0 : 9));
+        if (attacker.windCharge >= 100 && !attacker.windReadyShown) {
+          attacker.windReadyShown = true;
+          this.floatText(attacker.x, attacker.y - 190, '风势满', '#8ff8e6', 18);
+          this.toast('风势已满 · 下一次必杀强化', '#8ff8e6', 1.1);
+        }
+      } else if (attacker.key === 'chilin') {
+        attacker.overload = Math.min(100, (attacker.overload || 0) + (opts.type === 'ult' ? 12 : 5));
+        if (attacker.overload >= 100 && !attacker.overloadShown) {
+          attacker.overloadShown = true;
+          this.floatText(attacker.x, attacker.y - 190, '过载满', '#ffc879', 18);
+        }
+      }
+    }
 
     if (blocked) {
       const guardCost = incoming * GAME_RULES.guardCost + (opts.heavy ? 12 : 5);
@@ -2170,6 +2189,9 @@ const Game = {
         target.vx = 0;
         target.vy = 0;
         target.onGround = true;
+      } else if (target.ironWall > 0) {
+        target.hitstun = Math.max(target.hitstun, .05);
+        target.vx = dir * (opts.kb !== undefined ? opts.kb : 100) * .16 / (target.data.weight || 1);
       } else if (!armor) {
         target.blocking = false;
         target.blockstun = 0;
@@ -2300,6 +2322,32 @@ const Game = {
       }
 
       if (p.x < -200 || p.x > 1800 || p.y < -600 || p.y > 1000) { p.dead = true; continue; }
+
+      // 星轨结界：敌方飞行道具被拦截，己方星屑穿过时发生折射。
+      for (const z of this.zones) {
+        if (z.type !== 'starGate' || z.life <= 0) continue;
+        if (Math.abs(p.x - z.x) > z.radius * .72 || p.y < WORLD.ground - 238) continue;
+        if (p.owner === z.owner) {
+          if (!p.refracted) {
+            p.refracted = true;
+            p.vx *= .82;
+            p.vy = -(p.vy || 0) - 190;
+            this.addEffect({
+              type: 'ring', x: z.x, y: p.y, radius: 38,
+              color: z.color, life: .2, maxLife: .2, lineWidth: 3
+            });
+          }
+        } else {
+          p.dead = true;
+          this.addEffect({
+            type: 'burst', x: p.x, y: p.y, radius: 42,
+            color: z.color, seed: 1.2, life: .24, maxLife: .24
+          });
+          this.burst(p.x, p.y, z.color, 10, 180);
+          break;
+        }
+      }
+      if (p.dead) continue;
 
       const target = targetFor(p);
       const fraction = target && !target.dead ? U.sweptRect(fromX, fromY, p.x, p.y, target.hurtbox, p.radius) : null;
@@ -2744,8 +2792,18 @@ const Game = {
       else if (s.type === 'slow') list.push({ label: '减速', color: '#79e7ff', time: s.time });
       else if (s.type === 'root') list.push({ label: '定身', color: '#8aff7a', time: s.time });
       else if (s.type === 'burn') list.push({ label: '灼烧', color: '#ff9a45', time: s.time });
+      else if (s.type === 'overclock') list.push({ label: '超频', color: '#ffc879', time: s.time });
     });
     if (f.empowerTimer > 0) list.push({ label: '强化', color: '#ffd85e', time: f.empowerTimer });
+    if (f.ironWall > 0) list.push({ label: '铁壁', color: f.data.color2, time: f.ironWall });
+    if (f.decoyTimer > 0) list.push({ label: '替身', color: f.data.color2, time: f.decoyTimer });
+    if (f.key === 'arashi' && f.windCharge > 0) {
+      list.push({ label: f.windCharge >= 100 ? '风势·满' : '风势 ' + Math.round(f.windCharge) + '%', color: f.data.color2, time: 99 });
+    }
+    if (f.key === 'chilin') {
+      list.push({ label: f.stance === 'mech' ? '机关形态' : '人剑形态', color: f.data.color2, time: 99 });
+      if (f.overload > 0) list.push({ label: '过载 ' + Math.round(f.overload) + '%', color: f.data.color, time: 99 });
+    }
     if (f.guardTimer > 0) list.push({ label: '技能格挡', color: f.data.color2, time: f.guardTimer });
     if (f.blocking) list.push({ label: '格挡中', color: '#9fe8ff', time: 99 });
     if (f.dodgeTime > 0) list.push({ label: '闪避', color: '#aef4ff', time: f.dodgeTime });

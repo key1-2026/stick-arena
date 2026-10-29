@@ -110,6 +110,18 @@ class Fighter {
     this.dodgeCd = 0;
     this.dodgeDir = side === 'player' ? 1 : -1;
     this.empowerTimer = 0;
+    this.stance = 'blade';
+    this.overload = 0;
+    this.windCharge = 0;
+    this.windReadyShown = false;
+    this.overloadShown = false;
+    this.ironWall = 0;
+    this.decoyTimer = 0;
+    this.resonanceTimer = 0;
+    this.puppetX = this.x - this.facing * 96;
+    this.puppetY = this.y;
+    this.puppetLunge = 0;
+    this.puppetPulse = 0;
     this.muzzle = 0;
     this.slowMul = 1;
     this.dead = false;
@@ -171,6 +183,18 @@ class Fighter {
     this.dodgeCd = 0;
     this.dodgeDir = facing;
     this.empowerTimer = 0;
+    this.stance = 'blade';
+    this.overload = 0;
+    this.windCharge = 0;
+    this.windReadyShown = false;
+    this.overloadShown = false;
+    this.ironWall = 0;
+    this.decoyTimer = 0;
+    this.resonanceTimer = 0;
+    this.puppetX = x - facing * 96;
+    this.puppetY = WORLD.ground;
+    this.puppetLunge = 0;
+    this.puppetPulse = 0;
     this.stats = { damage: 0, maxCombo: 0, combo: 0, lastHitTime: -10, skillHits: 0, ults: 0 };
     if (this.ai) this.ai.reset(this);
   }
@@ -417,9 +441,19 @@ class Fighter {
     this.guardRegenDelay = Math.max(0, this.guardRegenDelay - dt);
     this.dodgeCd = Math.max(0, this.dodgeCd - dt);
     this.empowerTimer = Math.max(0, this.empowerTimer - dt);
+    this.ironWall = Math.max(0, this.ironWall - dt);
+    this.decoyTimer = Math.max(0, this.decoyTimer - dt);
+    this.resonanceTimer = Math.max(0, this.resonanceTimer - dt);
     this.chainWindow = Math.max(0, this.chainWindow - dt);
     this.queuedBasic = Math.max(0, this.queuedBasic - dt);
     for (let i = 0; i < 3; i++) this.cooldowns[i] = Math.max(0, this.cooldowns[i] - dt);
+    if (this.key === 'senmen') {
+      this.puppetY = this.y;
+      this.puppetLunge *= Math.exp(-5 * dt);
+      const puppetTarget = this.x - this.facing * 96 + this.facing * this.puppetLunge;
+      this.puppetX += (puppetTarget - this.puppetX) * (1 - Math.exp(-13 * dt));
+      this.puppetPulse += dt;
+    }
     this.updateStatuses(dt);
     const wasDodging = this.dodgeTime > 0;
     if (wasDodging) {
@@ -708,6 +742,91 @@ class Fighter {
           });
         }
       }
+    } else if (d.key === 'arashi' || d.key === 'genbu' || d.key === 'astra' ||
+               d.key === 'chilin' || d.key === 'senmen') {
+      const heavy = !!b.heavy;
+      const mech = d.key === 'chilin' && this.stance === 'mech';
+      if (d.key === 'astra' && idx === 2) {
+        GameAudio.magic();
+        this.spawnOrb('star', {
+          x: muzzle.x, y: muzzle.y, vx: this.facing * b.speed, vy: -12,
+          radius: b.radius, damage: b.dmg, kb: b.kb, stun: b.stun,
+          color: d.color2, glow: U.hexA(d.color, .66), life: 1.4
+        });
+        Game.addEffect({
+          type: 'ring', x: muzzle.x, y: muzzle.y, radius: 28,
+          color: d.color2, life: .25, maxLife: .25, lineWidth: 2
+        });
+      } else if (d.key === 'senmen') {
+        GameAudio.dagger();
+        const hit = this.meleeStrike(b.range, b.height || 140, b.dmg, {
+          kb: b.kb, stun: b.stun, launch: b.launch || 0, heavy,
+          type: 'basic', color: d.color
+        }, opp);
+        Game.addEffect({
+          type: 'slash', x: this.x + this.facing * b.range * .46, y: this.y - 86,
+          radius: b.range * .58, color: d.color, face: this.facing,
+          angle: this.facing > 0 ? -.7 : Math.PI - .7, heavy, life: .14, maxLife: .14
+        });
+        if (heavy) {
+          const puppetHit = this.puppetStrike(128, 150, Math.round(b.dmg * .8), {
+            kb: 210, stun: .3, heavy: true, color: d.color2
+          }, opp);
+          if (hit && puppetHit) this.triggerResonance(opp);
+        }
+      } else if (d.key === 'genbu') {
+        GameAudio.hammer(heavy);
+        this.meleeStrike(b.range, b.height || 158, b.dmg, {
+          kb: b.kb, stun: b.stun, launch: b.launch || 0, heavy,
+          type: 'basic', color: d.color
+        }, opp);
+        Game.addEffect({
+          type: 'slash', x: this.x + this.facing * b.range * .38, y: this.y - 78,
+          radius: b.range * .7, color: d.color, face: this.facing,
+          angle: this.facing > 0 ? -.15 : Math.PI - .15, heavy,
+          life: .22, maxLife: .22
+        });
+        if (heavy) {
+          Game.addEffect({
+            type: 'burst', x: this.x + this.facing * 72, y: WORLD.ground - 22,
+            radius: 105, color: d.color, seed: 1.8, life: .32, maxLife: .32
+          });
+          Game.shakeBy(7);
+          Game.dust(this.x + this.facing * 55, WORLD.ground, d.color, 16, 280);
+        }
+      } else if (mech) {
+        GameAudio.hammer(heavy);
+        this.meleeStrike(b.range + 8, b.height || 160, Math.round(b.dmg * 1.18), {
+          kb: b.kb + 30, stun: b.stun + .02, launch: b.launch || 0, heavy,
+          type: 'basic', color: d.color
+        }, opp);
+        Game.addEffect({
+          type: 'burst', x: this.x + this.facing * 70, y: this.y - 78,
+          radius: 68, color: d.color2, seed: 2.6, life: .2, maxLife: .2
+        });
+        if (heavy) {
+          Game.shakeBy(8);
+          Game.dust(this.x + this.facing * 50, WORLD.ground, d.color, 12, 240);
+        }
+      } else {
+        GameAudio.swing(heavy);
+        this.meleeStrike(b.range, b.height || 150, b.dmg, {
+          kb: b.kb, stun: b.stun, launch: b.launch || 0, heavy,
+          type: 'basic', color: d.color
+        }, opp);
+        Game.addEffect({
+          type: 'slash', x: this.x + this.facing * b.range * .4, y: this.y - 88,
+          radius: b.range * .62, color: d.key === 'arashi' ? d.color2 : d.color,
+          face: this.facing, angle: this.facing > 0 ? -.45 : Math.PI - .45,
+          heavy, life: .15, maxLife: .15
+        });
+        if (d.key === 'arashi' && heavy) {
+          Game.addEffect({
+            type: 'burst', x: this.x + this.facing * 66, y: this.y - 74,
+            radius: 58, color: d.color2, seed: 2.1, life: .22, maxLife: .22
+          });
+        }
+      }
     } else {
       const empowered = this.empowerTimer > 0;
       if (empowered) {
@@ -786,6 +905,39 @@ class Fighter {
       return hit;
     }
     return false;
+  }
+
+  puppetStrike(range, height, damage, opts, opp) {
+    if (!opp || opp.dead) return false;
+    const oldX = this.x, oldFacing = this.facing;
+    this.x = this.puppetX;
+    this.facing = opp.x >= this.x ? 1 : -1;
+    const hit = this.meleeStrike(range, height, damage, Object.assign({
+      type: 'skill', color: this.data.color2, dir: this.facing
+    }, opts), opp);
+    this.x = oldX;
+    this.facing = oldFacing;
+    return hit;
+  }
+
+  triggerResonance(opp) {
+    if (!this.data || this.data.key !== 'senmen' || !opp || opp.dead) return;
+    this.resonanceTimer = 0;
+    opp.hitstun = Math.max(opp.hitstun, .42);
+    opp.vx *= .35;
+    opp.action = null;
+    opp.queuedBasic = 0;
+    Game.floatText(opp.x, opp.y - 178, '共鸣 · 僵直', this.data.color2, 20);
+    Game.addEffect({
+      type: 'ring', x: opp.x, y: opp.y - 82, radius: 74,
+      color: this.data.color2, life: .32, maxLife: .32, lineWidth: 4
+    });
+    Game.addEffect({
+      type: 'burst', x: opp.x, y: opp.y - 86, radius: 82,
+      color: this.data.color, seed: 3.7, life: .3, maxLife: .3
+    });
+    GameAudio.hit(true, 'dagger');
+    Game.shakeBy(6);
   }
 
   castSkill(index, opp) {
@@ -1331,6 +1483,384 @@ class Fighter {
           }
         ], { drag: 12 });
       }
+    } else if (d.key === 'arashi') {
+      if (index === 0) {
+        const charged = this.windCharge >= 100;
+        this.beginAction('skill', 'Q', .56, [
+          { t: .1, fn: () => GameAudio.slash() },
+          {
+            t: .19, fn: () => {
+              const angles = charged ? [-.16, 0, .16] : [0];
+              for (const ang of angles) {
+                this.spawnOrb('orb', {
+                  x: this.x + dir * 52, y: this.y - 96,
+                  vx: dir * 930 * Math.cos(ang), vy: Math.sin(ang) * 930,
+                  radius: charged ? 15 : 13, damage: charged ? 44 : 62,
+                  kb: 190, stun: .24, color: charged ? d.color2 : d.color,
+                  glow: U.hexA(d.color2, .7), life: 1.15,
+                  trail: [], trailTimer: 0
+                });
+              }
+              if (charged) {
+                this.windCharge = 0;
+                this.windReadyShown = false;
+                Game.toast('风势释放 · 三段气刃', d.color2, 1);
+                Game.shakeBy(6);
+              }
+              Game.addEffect({
+                type: 'slash', x: this.x + dir * 54, y: this.y - 96,
+                radius: 70, color: d.color2, face: dir,
+                angle: dir > 0 ? -.1 : Math.PI - .1, heavy: charged,
+                life: .2, maxLife: .2
+              });
+            }
+          }
+        ], { drag: 8 });
+      } else if (index === 1) {
+        this.beginAction('skill', 'W', .64, [
+          {
+            t: .06, fn: () => {
+              this.invuln = Math.max(this.invuln, .26);
+              GameAudio.charge();
+            }
+          },
+          {
+            t: .22, fn: () => {
+              this.meleeStrike(142, 205, 92, {
+                kb: 170, stun: .42, launch: 620, heavy: true, type: 'skill', color: d.color2
+              }, opp);
+              this.vy = -310;
+              this.onGround = false;
+              Game.addEffect({
+                type: 'slash', x: this.x + dir * 34, y: this.y - 130,
+                radius: 96, color: d.color2, face: dir, angle: -1.1, heavy: true,
+                life: .2, maxLife: .2
+              });
+              Game.shakeBy(7);
+              GameAudio.hit(true);
+            }
+          },
+          {
+            t: .38, fn: () => {
+              this.meleeStrike(128, 170, 34, {
+                kb: 100, stun: .2, type: 'skill', color: d.color
+              }, opp);
+            }
+          }
+        ], { drag: 4, superArmor: true });
+      } else {
+        this.beginAction('skill', 'E', .62, [
+          { t: .08, fn: () => { this.vx = dir * 510; GameAudio.dash(); Game.dust(this.x, WORLD.ground, d.color2, 10, 260); } },
+          {
+            t: .18, fn: () => {
+              this.meleeStrike(172, 156, 44, {
+                kb: 80, stun: .22, type: 'skill', color: d.color
+              }, opp);
+            }
+          },
+          {
+            t: .31, fn: () => {
+              this.meleeStrike(180, 166, 48, {
+                kb: 120, stun: .25, type: 'skill', color: d.color2
+              }, opp);
+            }
+          },
+          {
+            t: .45, fn: () => {
+              this.meleeStrike(186, 170, 52, {
+                kb: 360, stun: .32, launch: 190, heavy: true, type: 'skill', color: d.color2
+              }, opp);
+              Game.addEffect({
+                type: 'ring', x: this.x + dir * 42, y: this.y - 92, radius: 92,
+                color: d.color2, life: .3, maxLife: .3, lineWidth: 4
+              });
+            }
+          }
+        ], { drag: 4.5 });
+      }
+    } else if (d.key === 'genbu') {
+      if (index === 0) {
+        this.beginAction('skill', 'Q', .82, [
+          { t: .08, fn: () => { this.addStatus('guard', .32, { silent: true }); GameAudio.charge(); } },
+          {
+            t: .3, fn: () => {
+              const close = Math.abs(opp.x - this.x) < 158 && opp.y > WORLD.ground - 230;
+              if (close && !opp.dead) {
+                Game.dealDamage(this, opp, 128, {
+                  kb: 240, stun: .86, launch: 390, heavy: true, type: 'skill',
+                  unblockable: true, color: d.color2, dir
+                });
+                Game.floatText(opp.x, opp.y - 170, '撼山抱', d.color2, 20);
+                Game.addEffect({
+                  type: 'burst', x: this.x + dir * 58, y: this.y - 78, radius: 88,
+                  color: d.color2, seed: 2.2, life: .36, maxLife: .36
+                });
+                Game.shakeBy(12);
+                GameAudio.hammer(true);
+              } else {
+                Game.addEffect({
+                  type: 'ring', x: this.x + dir * 62, y: this.y - 76, radius: 40,
+                  color: d.color, life: .22, maxLife: .22, lineWidth: 2
+                });
+                GameAudio.swing(true);
+              }
+            }
+          }
+        ], { drag: 2.2, superArmor: true });
+      } else if (index === 1) {
+        this.beginAction('skill', 'W', .48, [
+          {
+            t: .08, fn: () => {
+              this.ironWall = 2.7;
+              this.guardTimer = Math.max(this.guardTimer, .2);
+              this.addStatus('ironWall', 2.7, { color: d.color2 });
+              GameAudio.guard();
+              Game.addEffect({
+                type: 'ring', x: this.x, y: this.y - 76, radius: 58,
+                color: d.color2, life: .45, maxLife: .45, lineWidth: 4
+              });
+              Game.floatText(this.x, this.y - 178, '铁壁', d.color2, 20);
+            }
+          }
+        ], { drag: 16 });
+      } else {
+        this.beginAction('skill', 'E', .76, [
+          { t: .1, fn: () => GameAudio.charge() },
+          {
+            t: .3, fn: () => {
+              this.meleeStrike(232, 180, 108, {
+                kb: 250, stun: .5, launch: 260, heavy: true, type: 'skill', color: d.color2
+              }, opp);
+              Game.addEffect({
+                type: 'crack', x: this.x, y: WORLD.ground, radius: 190,
+                color: d.color, seed: 1.6, life: .55, maxLife: .55
+              });
+              Game.addEffect({
+                type: 'ring', x: this.x, y: WORLD.ground, radius: 190,
+                color: d.color2, life: .5, maxLife: .5, lineWidth: 7
+              });
+              Game.dust(this.x, WORLD.ground, d.color, 22, 300);
+              Game.shakeBy(16);
+              GameAudio.hammer(true);
+            }
+          }
+        ], { drag: 5, superArmor: true });
+      }
+    } else if (d.key === 'astra') {
+      if (index === 0) {
+        this.beginAction('skill', 'Q', .52, [
+          { t: .08, fn: () => GameAudio.magic() },
+          {
+            t: .2, fn: () => {
+              this.spawnOrb('star', {
+                x: this.x + dir * 54, y: this.y - 108,
+                vx: dir * 880, vy: 0, radius: 14, damage: 58,
+                kb: 180, stun: .24, color: d.color2, glow: U.hexA(d.color2, .7),
+                life: 1.25, trail: [], trailTimer: 0
+              });
+              Game.addEffect({
+                type: 'ring', x: this.x + dir * 54, y: this.y - 108, radius: 36,
+                color: d.color2, life: .28, maxLife: .28, lineWidth: 2
+              });
+            }
+          }
+        ], { drag: 12 });
+      } else if (index === 1) {
+        const targetX = U.clamp(opp.x, WORLD.left + 40, WORLD.right - 40);
+        this.beginAction('skill', 'W', .82, [
+          { t: .1, fn: () => GameAudio.charge() },
+          {
+            t: .3, fn: () => {
+              this.spawnOrb('meteor', {
+                x: targetX, y: -260, vx: 0, vy: 780, gravity: 1200,
+                radius: 42, damage: 112, kb: 310, stun: .42, heavy: true,
+                color: d.color, glow: U.hexA(d.color, .6), life: 2.2,
+                trail: [], trailTimer: 0, hitOnce: true
+              });
+              Game.addEffect({
+                type: 'target', x: targetX, y: WORLD.ground, radius: 105,
+                color: d.color, life: .7, maxLife: .7
+              });
+            }
+          }
+        ], { drag: 10 });
+      } else {
+        this.beginAction('skill', 'E', .66, [
+          { t: .08, fn: () => GameAudio.magic() },
+          {
+            t: .24, fn: () => {
+              const spots = [
+                U.clamp(this.x - dir * 170, WORLD.left + 50, WORLD.right - 50),
+                U.clamp(this.x + dir * 190, WORLD.left + 50, WORLD.right - 50)
+              ];
+              for (const x of spots) {
+                Game.addZone({
+                  type: 'starGate', x, y: WORLD.ground, radius: 60,
+                  owner: this, life: 7.5, maxLife: 7.5, color: d.color2,
+                  seed: U.rand(0, 8), tick: 0
+                });
+                Game.addEffect({
+                  type: 'ring', x, y: WORLD.ground - 92, radius: 74,
+                  color: d.color2, life: .5, maxLife: .5, lineWidth: 4
+                });
+                Game.burst(x, WORLD.ground - 92, d.color, 12, 200);
+              }
+              Game.floatText(this.x, this.y - 188, '星轨结界', d.color2, 20);
+            }
+          }
+        ], { drag: 9 });
+      }
+    } else if (d.key === 'chilin') {
+      if (index === 0) {
+        if (this.stance === 'mech') {
+          this.beginAction('skill', 'Q', .82, [
+            { t: .1, fn: () => GameAudio.charge() },
+            {
+              t: .38, fn: () => {
+                this.spawnBullet({
+                  x: this.x + dir * 58, y: this.y - 100,
+                  vx: dir * 1050, vy: 0, radius: 17, damage: 104,
+                  kb: 350, stun: .38, kind: 'bullet', color: d.color2,
+                  glow: U.hexA(d.color, .7), life: 1.3, heavy: true
+                });
+                Game.shakeBy(9);
+                Game.muzzleFlash(this.x + dir * 58, this.y - 100, dir, d, 1.1);
+                GameAudio.shotgun();
+              }
+            }
+          ], { drag: 8, superArmor: true });
+        } else {
+          this.beginAction('skill', 'Q', .58, [
+            {
+              t: .08, fn: () => {
+                this.invuln = Math.max(this.invuln, .18);
+                this.vx = dir * 820;
+                GameAudio.dash();
+                Game.dust(this.x, WORLD.ground, d.color2, 10, 240);
+              }
+            },
+            {
+              t: .2, fn: () => {
+                this.meleeStrike(184, 162, 78, {
+                  kb: 260, stun: .32, heavy: true, type: 'skill', color: d.color2
+                }, opp);
+                Game.addEffect({
+                  type: 'slash', x: this.x + dir * 60, y: this.y - 90,
+                  radius: 100, color: d.color2, face: dir, angle: dir > 0 ? -.05 : Math.PI - .05,
+                  heavy: true, life: .18, maxLife: .18
+                });
+              }
+            }
+          ], { drag: 4 });
+        }
+      } else if (index === 1) {
+        this.beginAction('skill', 'W', .58, [
+          { t: .08, fn: () => GameAudio.charge() },
+          {
+            t: .2, fn: () => {
+              this.overload = Math.min(100, this.overload + 36);
+              this.empowerTimer = Math.max(this.empowerTimer, 5);
+              this.addStatus('overclock', 5, { color: d.color2 });
+              this.overloadShown = false;
+              Game.addEffect({
+                type: 'ring', x: this.x, y: this.y - 84, radius: 62,
+                color: d.color2, life: .5, maxLife: .5, lineWidth: 4
+              });
+              Game.floatText(this.x, this.y - 186, '齿轮过载', d.color2, 20);
+            }
+          }
+        ], { drag: 12 });
+      } else {
+        const instant = this.overload >= 100;
+        this.beginAction('skill', 'E', instant ? .16 : .38, [
+          { t: .04, fn: () => GameAudio.guard() },
+          {
+            t: instant ? .08 : .18, fn: () => {
+              this.stance = this.stance === 'blade' ? 'mech' : 'blade';
+              this.overload = Math.min(100, this.overload + 34);
+              if (this.overload >= 100) {
+                this.empowerTimer = Math.max(this.empowerTimer, 5);
+                this.overload = 0;
+                this.overloadShown = false;
+                Game.toast('超频切换 · 终极技能强化', d.color2, 1.1);
+              }
+              Game.addEffect({
+                type: 'burst', x: this.x, y: this.y - 84, radius: 92,
+                color: this.stance === 'mech' ? d.color2 : d.color, seed: 2.1,
+                life: .34, maxLife: .34
+              });
+              Game.burst(this.x, this.y - 84, d.color2, 16, 220);
+              GameAudio.hammer(this.stance === 'mech');
+              this.overloadShown = false;
+            }
+          }
+        ], { drag: 8 });
+      }
+    } else if (d.key === 'senmen') {
+      if (index === 0) {
+        this.beginAction('skill', 'Q', .62, [
+          { t: .06, fn: () => GameAudio.dagger() },
+          {
+            t: .17, fn: () => {
+              const playerHit = this.meleeStrike(116, 148, 42, {
+                kb: 70, stun: .2, type: 'skill', color: d.color
+              }, opp);
+              this.puppetLunge = dir * 145;
+              this.puppetX = U.clamp(this.x + dir * 175, WORLD.left + 20, WORLD.right - 20);
+              const puppetHit = this.puppetStrike(178, 165, 66, {
+                kb: 210, stun: .3, heavy: true, color: d.color2
+              }, opp);
+              this.resonanceTimer = .42;
+              if (playerHit && puppetHit) this.triggerResonance(opp);
+              Game.addEffect({
+                type: 'slash', x: this.puppetX, y: this.y - 100,
+                radius: 92, color: d.color2, face: dir,
+                angle: dir > 0 ? -.6 : Math.PI - .6, heavy: true,
+                life: .16, maxLife: .16
+              });
+            }
+          }
+        ], { drag: 7 });
+      } else if (index === 1) {
+        this.beginAction('skill', 'W', .5, [
+          {
+            t: .05, fn: () => {
+              this.invuln = Math.max(this.invuln, .3);
+              GameAudio.blink();
+            }
+          },
+          {
+            t: .14, fn: () => {
+              const oldX = this.x;
+              this.x = U.clamp(this.x + dir * 180, WORLD.left + 30, WORLD.right - 30);
+              this.vx = 0;
+              this.facing = opp.x >= this.x ? 1 : -1;
+              Game.burst(oldX, this.y - 86, d.color, 16, 230);
+              Game.addEffect({
+                type: 'ring', x: this.x, y: this.y - 86, radius: 42,
+                color: d.color2, life: .28, maxLife: .28, lineWidth: 3
+              });
+            }
+          }
+        ], { drag: 12 });
+      } else {
+        this.beginAction('skill', 'E', .52, [
+          { t: .06, fn: () => GameAudio.blink() },
+          {
+            t: .18, fn: () => {
+              this.decoyTimer = 4;
+              this.puppetX = this.x;
+              this.puppetLunge = 0;
+              this.addStatus('decoy', 4, { color: d.color2 });
+              Game.addEffect({
+                type: 'ring', x: this.puppetX, y: this.y - 82, radius: 58,
+                color: d.color2, life: .45, maxLife: .45, lineWidth: 3
+              });
+              Game.floatText(this.x, this.y - 186, '傀儡替身', d.color2, 20);
+            }
+          }
+        ], { drag: 8 });
+      }
     }
     Game.addEffect({
       type: 'ring', x: this.x, y: this.y - 70, radius: 34,
@@ -1707,6 +2237,290 @@ class Fighter {
           }
         }
       ], { drag: 7, superArmor: true });
+    } else if (d.key === 'arashi') {
+      this.beginAction('ult', 'R', 1.78, [
+        {
+          t: .04, fn: () => {
+            this.invuln = 1.35;
+            this.vx = U.clamp((opp.x - dir * 48 - this.x) / .5, -900, 900);
+            GameAudio.charge();
+            Game.addEffect({
+              type: 'target', x: opp.x, y: WORLD.ground, radius: 100,
+              color: d.color2, life: .5, maxLife: .5
+            });
+          }
+        },
+        ...[.28, .44, .6, .76].map((tm, i) => ({
+          t: tm,
+          fn: () => {
+            this.facing = opp.x >= this.x ? 1 : -1;
+            this.meleeStrike(164, 170, 38, {
+              kb: 60, stun: .18, type: 'ult', color: i % 2 ? d.color2 : d.color
+            }, opp);
+            GameAudio.swing(i === 3);
+            Game.addEffect({
+              type: 'slash', x: this.x + this.facing * 48, y: this.y - 86 - (i % 2) * 16,
+              radius: 84, color: i % 2 ? d.color2 : d.color, face: this.facing,
+              angle: this.facing > 0 ? -.45 : Math.PI - .45, heavy: i === 3,
+              life: .13, maxLife: .13
+            });
+            Game.shakeBy(4);
+          }
+        })),
+        {
+          t: 1.08, fn: () => {
+            this.facing = opp.x >= this.x ? 1 : -1;
+            this.meleeStrike(186, 220, 116, {
+              kb: 330, stun: .55, launch: 620, heavy: true, type: 'ult', color: d.color2
+            }, opp);
+            this.vy = -420;
+            this.onGround = false;
+            GameAudio.hit(true);
+            Game.addEffect({
+              type: 'burst', x: this.x + this.facing * 54, y: this.y - 126,
+              radius: 118, color: d.color2, seed: 2.4, life: .4, maxLife: .4
+            });
+            Game.addEffect({
+              type: 'ring', x: this.x, y: this.y - 116, radius: 128,
+              color: d.color2, life: .5, maxLife: .5, lineWidth: 7
+            });
+            Game.flash(d.color2, .25);
+            Game.shakeBy(18);
+          }
+        }
+      ], { drag: 4, superArmor: true });
+    } else if (d.key === 'genbu') {
+      this.beginAction('ult', 'R', 1.95, [
+        {
+          t: .04, fn: () => {
+            this.invuln = 1.3;
+            this.vx = U.clamp((opp.x - this.x) / .45, -700, 700);
+            GameAudio.roar();
+            Game.addEffect({
+              type: 'target', x: opp.x, y: WORLD.ground, radius: 150,
+              color: d.color, life: .7, maxLife: .7
+            });
+          }
+        },
+        ...[.34, .62, .9].map((tm, i) => ({
+          t: tm,
+          fn: () => {
+            this.meleeStrike(190 + i * 18, 180, 46, {
+              kb: 90, stun: .3, type: 'ult', color: i % 2 ? d.color2 : d.color
+            }, opp);
+            Game.addEffect({
+              type: 'crack', x: this.x + this.facing * 70, y: WORLD.ground,
+              radius: 130 + i * 18, color: d.color, seed: 1.1 + i * .7,
+              life: .45, maxLife: .45
+            });
+            Game.dust(this.x + this.facing * 50, WORLD.ground, d.color, 14, 260);
+            Game.shakeBy(8 + i * 2);
+            GameAudio.hammer(i === 2);
+          }
+        })),
+        {
+          t: 1.22, fn: () => {
+            this.meleeStrike(250, 200, 156, {
+              kb: 430, stun: .72, launch: 320, heavy: true, type: 'ult', color: d.color2
+            }, opp);
+            Game.addEffect({
+              type: 'crack', x: this.x, y: WORLD.ground, radius: 340,
+              color: d.color2, seed: 2.8, life: .75, maxLife: .75
+            });
+            Game.addEffect({
+              type: 'ring', x: this.x, y: WORLD.ground, radius: 340,
+              color: d.color2, life: .7, maxLife: .7, lineWidth: 11
+            });
+            Game.dust(this.x, WORLD.ground, d.color2, 28, 340);
+            Game.flash(d.color, .3);
+            Game.shakeBy(24);
+          }
+        }
+      ], { drag: 3.2, superArmor: true });
+    } else if (d.key === 'astra') {
+      const center = U.clamp(opp.x, WORLD.left + 60, WORLD.right - 60);
+      this.beginAction('ult', 'R', 2.05, [
+        {
+          t: .04, fn: () => {
+            this.invuln = 1.7;
+            this.vx = 0;
+            GameAudio.magic();
+            Game.addEffect({
+              type: 'target', x: center, y: WORLD.ground, radius: 190,
+              color: d.color2, life: 1.7, maxLife: 1.7
+            });
+            Game.addEffect({
+              type: 'ring', x: this.x, y: this.y - 90, radius: 110,
+              color: d.color2, life: .55, maxLife: .55, lineWidth: 5
+            });
+          }
+        },
+        ...Array.from({ length: 9 }, (_, i) => ({
+          t: .22 + i * .16,
+          fn: () => {
+            const x = U.clamp(center + U.rand(-220, 220), WORLD.left + 30, WORLD.right - 30);
+            this.spawnOrb('meteor', {
+              x, y: -240, vx: 0, vy: 760, gravity: 1200,
+              radius: 30, damage: 34, kb: 140, stun: .22,
+              color: i % 2 ? d.color2 : d.color, glow: U.hexA(d.color, .6),
+              life: 2.1, trail: [], trailTimer: 0, hitOnce: true
+            });
+          }
+        })),
+        {
+          t: 1.72, fn: () => {
+            Game.explode(center, WORLD.ground - 40, 210, d.color2, this, 96, {
+              burn: false, heavy: true, type: 'ult', sourceAction: this.action
+            });
+            Game.addEffect({
+              type: 'ring', x: center, y: WORLD.ground - 52, radius: 230,
+              color: d.color2, life: .75, maxLife: .75, lineWidth: 10
+            });
+            Game.flash(d.color2, .32);
+            Game.shakeBy(20);
+            GameAudio.explosion();
+          }
+        }
+      ], { drag: 8 });
+    } else if (d.key === 'chilin') {
+      const mech = this.stance === 'mech';
+      if (mech) {
+        this.beginAction('ult', 'R', 2.0, [
+          {
+            t: .04, fn: () => {
+              this.invuln = 1.55;
+              this.vx = U.clamp((opp.x - this.x) / .5, -650, 650);
+              GameAudio.charge();
+              this.addStatus('overclock', 5, { color: d.color2 });
+            }
+          },
+          ...[.38, .66, .94].map((tm, i) => ({
+            t: tm,
+            fn: () => {
+              this.meleeStrike(220, 195, 52, {
+                kb: 130, stun: .32, heavy: i === 2, type: 'ult', color: i % 2 ? d.color2 : d.color
+              }, opp);
+              Game.addEffect({
+                type: 'burst', x: this.x + this.facing * 92, y: WORLD.ground - 24,
+                radius: 125, color: d.color2, seed: 1.3 + i * .8, life: .34, maxLife: .34
+              });
+              Game.dust(this.x + this.facing * 70, WORLD.ground, d.color, 16, 280);
+              Game.shakeBy(9 + i * 3);
+              GameAudio.hammer(i === 2);
+            }
+          })),
+          {
+            t: 1.28, fn: () => {
+              this.meleeStrike(270, 210, 150, {
+                kb: 470, stun: .65, launch: 380, heavy: true, type: 'ult', color: d.color2
+              }, opp);
+              Game.explode(this.x + this.facing * 110, WORLD.ground - 40, 180, d.color2, this, 44, {
+                burn: true, heavy: true, type: 'ult', sourceAction: this.action
+              });
+              Game.flash(d.color2, .28);
+              Game.shakeBy(22);
+            }
+          }
+        ], { drag: 4.2, superArmor: true });
+      } else {
+        this.beginAction('ult', 'R', 1.8, [
+          {
+            t: .04, fn: () => {
+              this.invuln = 1.3;
+              this.vx = U.clamp((opp.x - dir * 54 - this.x) / .5, -900, 900);
+              GameAudio.dash();
+            }
+          },
+          {
+            t: .22, fn: () => {
+              this.facing = opp.x >= this.x ? 1 : -1;
+              this.x = U.clamp(opp.x - this.facing * 58, WORLD.left + 30, WORLD.right - 30);
+              this.vx = 0;
+              this.addStatus('overclock', 5, { color: d.color2 });
+            }
+          },
+          ...[.38, .54, .7, .86].map((tm, i) => ({
+            t: tm,
+            fn: () => {
+              this.facing = opp.x >= this.x ? 1 : -1;
+              this.meleeStrike(176, 180, 42, {
+                kb: 70, stun: .2, type: 'ult', color: i % 2 ? d.color2 : d.color
+              }, opp);
+              Game.addEffect({
+                type: 'slash', x: this.x + this.facing * 56, y: this.y - 88,
+                radius: 96, color: d.color2, face: this.facing,
+                angle: this.facing > 0 ? -.7 : Math.PI - .7, heavy: i === 3,
+                life: .13, maxLife: .13
+              });
+              Game.shakeBy(5);
+            }
+          })),
+          {
+            t: 1.16, fn: () => {
+              this.meleeStrike(204, 200, 138, {
+                kb: 480, stun: .58, launch: 300, heavy: true, type: 'ult', color: d.color2
+              }, opp);
+              Game.addEffect({
+                type: 'crack', x: this.x + this.facing * 80, y: WORLD.ground,
+                radius: 210, color: d.color2, seed: 3.4, life: .6, maxLife: .6
+              });
+              Game.flash(d.color2, .3);
+              Game.shakeBy(18);
+            }
+          }
+        ], { drag: 5, superArmor: true });
+      }
+    } else if (d.key === 'senmen') {
+      this.beginAction('ult', 'R', 1.95, [
+        {
+          t: .04, fn: () => {
+            this.invuln = 1.45;
+            this.vx = 0;
+            this.puppetLunge = dir * 180;
+            this.puppetX = U.clamp(opp.x + dir * 80, WORLD.left + 30, WORLD.right - 30);
+            GameAudio.blink();
+            Game.addEffect({
+              type: 'ring', x: this.x, y: this.y - 90, radius: 90,
+              color: d.color2, life: .5, maxLife: .5, lineWidth: 4
+            });
+          }
+        },
+        ...Array.from({ length: 5 }, (_, i) => ({
+          t: .26 + i * .18,
+          fn: () => {
+            this.facing = opp.x >= this.x ? 1 : -1;
+            const playerHit = this.meleeStrike(128, 152, 26, {
+              kb: 40, stun: .16, type: 'ult', color: d.color
+            }, opp);
+            const puppetHit = this.puppetStrike(186, 172, 32, {
+              kb: 55, stun: .18, type: 'ult', color: d.color2
+            }, opp);
+            GameAudio.dagger();
+            Game.addEffect({
+              type: 'slash', x: i % 2 ? this.puppetX : this.x + this.facing * 52,
+              y: this.y - 92, radius: 92, color: i % 2 ? d.color2 : d.color,
+              face: this.facing, angle: this.facing > 0 ? -.55 : Math.PI - .55,
+              heavy: false, life: .12, maxLife: .12
+            });
+            if (i === 4 && playerHit && puppetHit) this.triggerResonance(opp);
+            Game.shakeBy(4);
+          }
+        })),
+        {
+          t: 1.3, fn: () => {
+            this.facing = opp.x >= this.x ? 1 : -1;
+            this.meleeStrike(200, 205, 92, {
+              kb: 420, stun: .55, launch: 300, heavy: true, type: 'ult', color: d.color2
+            }, opp);
+            this.puppetStrike(210, 205, 96, {
+              kb: 420, stun: .55, launch: 300, heavy: true, color: d.color2
+            }, opp);
+            this.triggerResonance(opp);
+            Game.flash(d.color2, .3);
+            Game.shakeBy(20);
+          }
+        }
+      ], { drag: 5, superArmor: true });
     }
   }
 
@@ -1776,9 +2590,9 @@ class AIBrain {
         this.moveDir = 0;
       } else if (dist > range.ideal + 95) {
         this.moveDir = dir;
-      } else if (dist < range.retreat && !['warrior', 'barbarian', 'assassin'].includes(f.key)) {
+      } else if (dist < range.retreat && !['warrior', 'barbarian', 'assassin', 'arashi', 'genbu', 'chilin', 'senmen'].includes(f.key)) {
         this.moveDir = -dir;
-      } else if (dist < 65 && ['warrior', 'barbarian', 'assassin'].includes(f.key)) {
+      } else if (dist < 65 && ['warrior', 'barbarian', 'assassin', 'arashi', 'genbu', 'chilin', 'senmen'].includes(f.key)) {
         this.moveDir = 0;
       } else {
         this.strafeTimer -= dt;

@@ -325,10 +325,241 @@ const CHARACTERS = {
       name: '瞬狱杀', glyph: '狱', color: '#ff8ae6',
       desc: '瞬移至对手身后，连续斩击后以一刀终结。'
     }
+  },
+
+  /* =========================================================
+       第二季 · 五位新英雄
+       ========================================================= */
+
+  arashi: {
+    key: 'arashi',
+    name: '岚',
+    en: 'ARASHI',
+    title: '疾风拳士',
+    role: '近战 · 均衡',
+    color: '#46d6c8',
+    color2: '#d9fff8',
+    dark: '#0d4a46',
+    glow: 'rgba(70,214,200,.65)',
+    hp: 1060,
+    speed: 334,
+    jump: 948,
+    doubleJump: 810,
+    weight: 1.0,
+    desc: '传统武术世家的拳士。攻守转换流畅，以风势强化必杀，是最好上手的全能角色。',
+    difficulty: '均衡',
+    stats: { atk: 84, def: 72, mob: 80 },
+    basicName: '裂风三连击',
+    basicHint: '拳、肘、回旋踢 · 第三段击飞',
+    basic: [
+      { dmg: 34, range: 142, height: 146, kb: 70, stun: 0.14 },
+      { dmg: 38, range: 150, height: 150, kb: 95, stun: 0.16 },
+      { dmg: 64, range: 168, height: 174, kb: 330, stun: 0.3, launch: 260, heavy: true }
+    ],
+    skills: [
+      {
+        key: 'U', name: '气刃斩', glyph: '气', cd: 7,
+        color: '#63f1df', desc: '挥出高速风刃；风势满时变为三段追踪风刃。'
+      },
+      {
+        key: 'I', name: '逆风升', glyph: '升', cd: 9,
+        color: '#b7fff4', desc: '起手短暂无敌的升龙拳，将对手打向空中。'
+      },
+      {
+        key: 'O', name: '疾风扫', glyph: '扫', cd: 10,
+        color: '#8ff8e6', desc: '向前突进并连续回旋踢，末段击退。'
+      }
+    ],
+    ult: {
+      name: '天风连打', glyph: '岚', color: '#5ff5df',
+      desc: '化作疾风突进，连续拳脚追击后以升龙终结。'
+    }
+  },
+
+  genbu: {
+    key: 'genbu',
+    name: '玄武',
+    en: 'GENBU',
+    title: '钢壁武僧',
+    role: '近战 · 投技',
+    color: '#c99b58',
+    color2: '#ffe4ad',
+    dark: '#49331a',
+    glow: 'rgba(201,155,88,.62)',
+    hp: 1380,
+    speed: 272,
+    jump: 858,
+    doubleJump: 740,
+    weight: 1.34,
+    desc: '沉默的重甲苦行僧。以铁壁格挡和指令投碾碎进攻，慢，但每一次接触都极重。',
+    difficulty: '重装',
+    stats: { atk: 98, def: 104, mob: 30 },
+    basicName: '崩山三击',
+    basicHint: '沉肩、铁掌、震地 · 末段击倒',
+    basic: [
+      { dmg: 48, range: 154, height: 154, kb: 90, stun: 0.18 },
+      { dmg: 54, range: 160, height: 158, kb: 110, stun: 0.2 },
+      { dmg: 86, range: 178, height: 178, kb: 300, stun: 0.38, launch: 140, heavy: true }
+    ],
+    skills: [
+      {
+        key: 'U', name: '撼山抱', glyph: '抱', cd: 9,
+        color: '#f2c77b', desc: '破防指令投：抓住近身对手并重摔在地。'
+      },
+      {
+        key: 'I', name: '铁壁格挡', glyph: '壁', cd: 12,
+        color: '#ffd995', desc: '进入铁壁姿态，大幅减伤且不受硬直，可硬吃攻击。'
+      },
+      {
+        key: 'O', name: '地裂摔', glyph: '摔', cd: 11,
+        color: '#e6b46b', desc: '跃起砸地，引发大范围地裂并击倒对手。'
+      }
+    ],
+    ult: {
+      name: '山崩地裂', glyph: '山', color: '#ffd28a',
+      desc: '连续震地，最后以山岳般的一击将对手砸入地面。'
+    }
+  },
+
+  astra: {
+    key: 'astra',
+    name: '星轨',
+    en: 'ASTRA',
+    title: '虚空占星师',
+    role: '远程 · 控场',
+    color: '#a98bff',
+    color2: '#7ff0ff',
+    dark: '#2b1a5e',
+    glow: 'rgba(169,139,255,.66)',
+    hp: 820,
+    speed: 306,
+    jump: 936,
+    doubleJump: 806,
+    weight: 0.86,
+    desc: '被放逐的皇家占星师。以星盘封锁天空，用折射的星屑把对手逼入死角。',
+    difficulty: '进阶',
+    stats: { atk: 96, def: 50, mob: 58 },
+    basicName: '星辉三杖',
+    basicHint: '短杖点射 · 第三段放出星屑',
+    basic: [
+      { dmg: 28, range: 132, height: 146, kb: 60, stun: 0.13 },
+      { dmg: 32, range: 138, height: 150, kb: 75, stun: 0.14 },
+      { dmg: 46, speed: 920, radius: 12, kb: 180, stun: 0.22, heavy: true }
+    ],
+    skills: [
+      {
+        key: 'U', name: '星屑弹', glyph: '屑', cd: 7,
+        color: '#bda6ff', desc: '射出高速星屑；穿过星盘时会折射出第二发。'
+      },
+      {
+        key: 'I', name: '陨星落', glyph: '陨', cd: 11,
+        color: '#8feaff', desc: '在对手头顶召唤陨星，落地后造成范围爆炸。'
+      },
+      {
+        key: 'O', name: '星轨结界', glyph: '界', cd: 14,
+        color: '#d6c4ff', desc: '在身前放置两枚星盘，阻挡并折射飞行道具。'
+      }
+    ],
+    ult: {
+      name: '星盘审判', glyph: '审', color: '#c3a8ff',
+      desc: '展开巨大星盘，召唤连续坠落的星屑轰击整个区域。'
+    }
+  },
+
+  chilin: {
+    key: 'chilin',
+    name: '赤鳞',
+    en: 'CHI-LIN',
+    title: '偃甲机关师',
+    role: '形态 · 机关',
+    color: '#dfa24d',
+    color2: '#ff8b70',
+    dark: '#582a13',
+    glow: 'rgba(223,162,77,.64)',
+    hp: 1110,
+    speed: 310,
+    jump: 924,
+    doubleJump: 798,
+    weight: 1.08,
+    desc: '把战斗视为齿轮咬合的天才工匠。人剑形态灵动，机关形态重压，切换间积攒过载。',
+    difficulty: '高阶',
+    stats: { atk: 91, def: 80, mob: 58 },
+    basicName: '偃甲三式',
+    basicHint: '人剑快速突刺 / 机关重击 · 形态改变招式',
+    basic: [
+      { dmg: 36, range: 148, height: 150, kb: 75, stun: 0.14 },
+      { dmg: 40, range: 155, height: 154, kb: 90, stun: 0.16 },
+      { dmg: 68, range: 172, height: 176, kb: 300, stun: 0.3, launch: 180, heavy: true }
+    ],
+    skills: [
+      {
+        key: 'U', name: '机关突刺', glyph: '刺', cd: 7.5,
+        color: '#ffc46b', desc: '人剑形态突进刺击；机关形态发射破防炮击。'
+      },
+      {
+        key: 'I', name: '齿轮过载', glyph: '轮', cd: 12,
+        color: '#ff9a75', desc: '进入过载，短时间强化攻击；满过载时切换无硬直。'
+      },
+      {
+        key: 'O', name: '形态切换', glyph: '换', cd: 3,
+        color: '#ffd18a', desc: '在人剑与机关形态间切换，并积攒过载值。'
+      }
+    ],
+    ult: {
+      name: '超频·天工', glyph: '工', color: '#ffc879',
+      desc: '展开偃甲匣全力轰击；机关形态下造成破防与霸体。'
+    }
+  },
+
+  senmen: {
+    key: 'senmen',
+    name: '千面',
+    en: 'SEN-MEN',
+    title: '影戏伶人',
+    role: '傀儡 · 诡术',
+    color: '#e05c8a',
+    color2: '#ffd1e0',
+    dark: '#4a1029',
+    glow: 'rgba(224,92,138,.64)',
+    hp: 870,
+    speed: 342,
+    jump: 952,
+    weight: 0.84,
+    desc: '一场大火毁去容颜的皮影名伶。本体轻盈诡诈，巨型傀儡则负责把对手撕碎。',
+    difficulty: '诡变',
+    stats: { atk: 88, def: 52, mob: 86 },
+    basicName: '提线三刺',
+    basicHint: '短匕三连 · 末段傀儡补击',
+    basic: [
+      { dmg: 26, range: 118, height: 142, kb: 55, stun: 0.12 },
+      { dmg: 30, range: 124, height: 146, kb: 68, stun: 0.13 },
+      { dmg: 50, range: 132, height: 158, kb: 220, stun: 0.24, heavy: true }
+    ],
+    skills: [
+      {
+        key: 'U', name: '提线突袭', glyph: '线', cd: 7,
+        color: '#ff8fb0', desc: '傀儡从另一侧突进；与本体重合命中时触发共鸣僵直。'
+      },
+      {
+        key: 'I', name: '缩地', glyph: '缩', cd: 8,
+        color: '#ffb3c8', desc: '瞬间缩短距离并留下残影，短暂无敌。'
+      },
+      {
+        key: 'O', name: '傀儡替身', glyph: '替', cd: 14,
+        color: '#ffd1e0', desc: '把傀儡留在原地替身，短时间内大幅减伤。'
+      }
+    ],
+    ult: {
+      name: '影戏·双簧', glyph: '戏', color: '#ff9fbd',
+      desc: '本体与傀儡同时登台，从两侧连续夹击并触发共鸣。'
+    }
   }
 };
 
-const CHAR_ORDER = ['warrior', 'mage', 'archer', 'gunner', 'barbarian', 'goblin', 'assassin'];
+const CHAR_ORDER = [
+  'warrior', 'mage', 'archer', 'gunner', 'barbarian', 'goblin', 'assassin',
+  'arashi', 'genbu', 'astra', 'chilin', 'senmen'
+];
 
 const MAPS = {
   lava: {
@@ -391,7 +622,12 @@ const AI_RANGE = {
   gunner: { basic: 500, ideal: 390, retreat: 210, ult: 720 },
   barbarian: { basic: 175, ideal: 130, retreat: 70, ult: 360 },
   goblin: { basic: 215, ideal: 180, retreat: 100, ult: 900 },
-  assassin: { basic: 135, ideal: 100, retreat: 55, ult: 330 }
+  assassin: { basic: 135, ideal: 100, retreat: 55, ult: 330 },
+  arashi: { basic: 156, ideal: 120, retreat: 60, ult: 340 },
+  genbu: { basic: 152, ideal: 105, retreat: 45, ult: 310 },
+  astra: { basic: 560, ideal: 480, retreat: 270, ult: 680 },
+  chilin: { basic: 166, ideal: 128, retreat: 62, ult: 340 },
+  senmen: { basic: 146, ideal: 108, retreat: 52, ult: 330 }
 };
 
 const AI_SKILL_RANGE = {
@@ -401,7 +637,12 @@ const AI_SKILL_RANGE = {
   gunner: [[160, 580], [0, 280], [0, 380], [120, 900]],
   barbarian: [[0, 440], [100, 560], [0, 220], [0, 360]],
   goblin: [[180, 820], [0, 320], [0, 230], [0, 900]],
-  assassin: [[0, 360], [100, 650], [0, 320], [0, 330]]
+  assassin: [[0, 360], [100, 650], [0, 320], [0, 330]],
+  arashi: [[70, 500], [0, 190], [30, 300], [0, 360]],
+  genbu: [[0, 155], [0, 90], [0, 230], [0, 330]],
+  astra: [[180, 780], [90, 640], [0, 420], [0, 780]],
+  chilin: [[0, 430], [0, 220], [0, 220], [0, 380]],
+  senmen: [[0, 390], [0, 300], [0, 320], [0, 370]]
 };
 
 const GAME_RULES = {
@@ -433,7 +674,12 @@ const BASIC_FRAMES = {
   gunner:    [[5,1,16,17,0,65], [6,1,16,19,0,75], [10,1,25,24,0,140]],
   barbarian: [[10,4,16,26,24,100], [11,4,17,30,30,125], [16,5,24,35,44,430]],
   goblin:    [[7,3,12,21,16,65], [7,3,14,24,22,80], [12,4,20,29,30,230]],
-  assassin:  [[4,2,10,17,18,45], [5,2,11,21,24,60], [8,3,17,26,32,230]]
+  assassin:  [[4,2,10,17,18,45], [5,2,11,21,24,60], [8,3,17,26,32,230]],
+  arashi:    [[5,2,9,17,18,70], [5,2,10,18,22,90], [8,3,15,28,30,300]],
+  genbu:     [[10,4,17,26,20,90], [11,4,18,30,24,110], [15,5,24,38,36,360]],
+  astra:     [[8,1,15,18,0,60], [8,1,16,19,0,65], [11,2,21,26,0,180]],
+  chilin:    [[6,2,11,19,18,75], [7,2,12,22,22,90], [10,3,18,29,30,240]],
+  senmen:    [[4,2,9,15,12,45], [4,2,10,17,16,55], [7,3,15,24,24,210]]
 };
 for (const key of CHAR_ORDER) {
   CHARACTERS[key].basic.forEach((move, index) => {

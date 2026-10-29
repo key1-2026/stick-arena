@@ -2677,3 +2677,34 @@ details[open] .profile-toggle:after {
 .help-card.collapsed {
   max-height:none;
 }
+
+/* =========================================================
+   第二季：十二斗士名单适配
+   ========================================================= */
+@media (min-width: 1081px) {
+  .roster-panel { position: sticky; top: 20px; }
+  .character-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    max-height: calc(100vh - 300px);
+    overflow-y: auto;
+    padding-right: 3px;
+    scrollbar-width: thin;
+  }
+  .character-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    min-height: 68px;
+    padding: 6px 4px;
+    text-align: center;
+  }
+  .cc-canvas { order: -1; width: 34px; height: 39px; }
+  .cc-copy { gap: 1px; }
+  .cc-name { font-size: 14px; }
+  .cc-role { font-size: 10px; line-height: 1.15; white-space: normal; }
+}
+@media (min-width: 721px) and (max-width: 1080px) {
+  .character-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
